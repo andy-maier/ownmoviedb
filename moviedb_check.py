@@ -2,26 +2,27 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
 #
-# This script checks the movie database for consistency.
-#
-# Invoke with '-?' or '--help' for help.
+# Checks the movie database for consistency and displays messages for any inconsistencies detected.
+# Usage see below in Usage(), or invoke with '-h' or '--help'.
 #
 # Supported platforms:
 #   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
+#   Tested on Windows XP and Windows 7.
 #
 # Prerequisites:
 #   1. Python 2.7, available from http://www.python.org
 #
+# Change log:
+#   V1.0.1 2012-08-13
 
-my_name = "movies_check"
 my_version = "1.0.1"
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
 import MySQLdb
-from movies_conf import *
+import movies_conf
 
+my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
 num_errors = 0                  # global number of errors
 quiet_mode = True               # quiet mode, controlled by -v option
@@ -38,44 +39,49 @@ def Usage ():
     """
 
     print ""
-    print "Checks the Movie and Medium tables of the movies database on a MySQL server for consistency."
+    print "Checks the movie database for consistency and displays messages for any inconsistencies detected."
+    print "Checks performed: TBD"
     print ""
     print "Usage:"
     print "  "+my_name+" [options]"
     print ""
     print "Options:"
     print "  -v          Verbose mode: Display additional messages."
+    print "  -h, --help  Display this help text."
     print ""
-    print "MySQL server:"
-    print "  host: "+mysql_host+" (default port 3306)"
-    print "  user: "+mysql_user+" (no password)"
+    print "Movie database:"
+    print "  MySQL host: "+movies_conf.mysql_host+" (default port 3306)"
+    print "  MySQL user: "+movies_conf.mysql_user+" (no password)"
+    print "  MySQL database: "+movies_conf.mysql_db
     print ""
 
     return
 
 
 #------------------------------------------------------------------------------
-def ErrorMsg (msg):
-    """Print an error message to stderr.
-       Input:
-         msg: Error message string.
-       Return:
-         void.
+def ErrorMsg(msg):
+    """Prints an error message to stdout.
+
+    Parameters:
+        msg:        Message string (str or unicode type).
+                    The string "Error: " gets added to the message string.
+
+    Returns nothing
     """
 
-    global num_errors, output_cp
+    global num_errors
 
     msg = "Error: "+msg
 
     if type(msg) == unicode:
         msgu = msg
     else:
-        msgu = msg.decode("ascii")
+        msgu = msg.decode()
+    encoding = sys.stdout.encoding if sys.stdout.encoding else sys.getfilesystemencoding()
+    msg = msgu.encode(encoding, "backslashreplace")
 
-    text = msgu.encode(output_cp,'backslashreplace')
-
-    print >>sys.stderr, text
-    sys.stderr.flush()
+    print >>sys.stdout, msg
+    sys.stdout.flush()
 
     num_errors += 1
 
@@ -83,30 +89,53 @@ def ErrorMsg (msg):
 
 
 #------------------------------------------------------------------------------
-def Msg (msg):
-    """Print a message to stdout, unless quiet mode is active.
-       Input:
-         msg: Message string.
-       Return:
-         void.
+def WarningMsg(msg):
+    """Prints a warning message to stdout.
+
+    Parameters:
+        msg:        Message string (str or unicode type).
+                    The string "Warning: " gets added to the message string.
+
+    Returns nothing
     """
 
-    global quiet_mode, output_cp
+    msg = "Warning: "+msg
 
-    if quiet_mode == False:
+    if type(msg) == unicode:
+        msgu = msg
+    else:
+        msgu = msg.decode()
+    encoding = sys.stdout.encoding if sys.stdout.encoding else sys.getfilesystemencoding()
+    msg = msgu.encode(encoding, "backslashreplace")
+
+    print >>sys.stdout, msg
+    sys.stdout.flush()
+
+    return
+
+
+#------------------------------------------------------------------------------
+def Msg(msg):
+    """Prints a message to stdout if in verbose mode.
+
+    Parameters:
+        msg:        Message string (str or unicode type).
+
+    Returns nothing
+    """
+
+    global verbose_mode
+
+    if verbose_mode:
 
         if type(msg) == unicode:
             msgu = msg
         else:
-            msgu = msg.decode("ascii")
+            msgu = msg.decode()
+        encoding = sys.stdout.encoding if sys.stdout.encoding else sys.getfilesystemencoding()
+        msg = msgu.encode(encoding, "backslashreplace")
 
-        # print "Debug: msgu: type = "+str(type(msgu))+", repr = "+repr(msgu)
-
-        text = msgu.encode(output_cp,'backslashreplace')
-
-        # print "Debug: text: type = "+str(type(text))+", repr = "+repr(text)
-
-        print >>sys.stdout, text
+        print >>sys.stdout, msg
         sys.stdout.flush()
 
     return
@@ -898,7 +927,7 @@ _i = 1
 while _i < len(sys.argv):
     arg = sys.argv[_i]
     if arg[0] == "-":
-        if arg == "-?" or arg == "--help":
+        if arg == "-h" or arg == "--help":
             Usage()
             exit(100)
         elif arg == "-a":
@@ -929,7 +958,8 @@ Msg( my_name+" Version "+my_version)
 
 
 # Connection to movie database
-movies_conn = MySQLdb.connect(host=mysql_host,user=mysql_user,db=mysql_db,use_unicode=True)
+movies_conn = MySQLdb.connect( host=movies_conf.mysql_host, user=movies_conf.mysql_user,
+                               db=movies_conf.mysql_db, use_unicode=True, charset='utf8')
 
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)

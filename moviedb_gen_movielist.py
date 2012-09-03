@@ -2,13 +2,12 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
 #
-# This script generates a list of all movie files, with movie descriptions.
-#
-# Invoke with '-?' or '--help' for help.
+# Generates a CSV file containing the list of movie files in the movies database
+# Usage see below in Usage(), or invoke with '-h' or '--help'.
 #
 # Supported platforms:
 #   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
+#   Tested on Windows XP and Windows 7.
 #
 # Prerequisites:
 #   1. Python 2.7, available from http://www.python.org
@@ -17,15 +16,16 @@
 #   V1.1.0 2012-06-24
 #     Added Homenet rating columns based on UserMovieOpinion table.
 #     Fixed Excel CSV issue by replacing \r with \n in content of string cells, because \r triggers new row in Excel.
+#   V1.1.1 2012-08-13
 
-my_name = "movies_genlist"
-my_version = "1.1.1"
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
 import MySQLdb
-from movies_conf import *
+from moviedb import config, utils, version
 
+
+my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
 outcsv_file = "movielist.csv"  # file name of output CSV file
 outcsv_cp = "utf-8"            # code page used for output CSV file
@@ -35,8 +35,6 @@ filepath_begin_list = (         # file paths (or begins thereof) with movie file
   "\\Movies\\share",
 )
 
-num_errors = 0                  # global number of errors
-quiet_mode = True               # quiet mode, controlled by -v option
 
 #------------------------------------------------------------------------------
 def Usage ():
@@ -48,82 +46,25 @@ def Usage ():
     """
 
     print ""
-    print "Generates a list of all movie files in the movies database on a MySQL server, and "
-    print "writes the list including descriptive data about the movies to a CSV output file."
+    print "Generates a CSV file containing the list of movie files in the movies database."
     print ""
     print "Usage:"
     print "  "+my_name+" [options]"
     print ""
     print "Options:"
     print "  -v          Verbose mode: Display additional messages."
+    print "  -h, --help  Display this help text."
     print ""
-    print "MySQL server:"
-    print "  host: "+mysql_host+" (default port 3306)"
-    print "  user: "+mysql_user+" (no password)"
+    print "Movie database:"
+    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
+    print "  MySQL user: "+config.mysql_user+" (no password)"
+    print "  MySQL database: "+config.mysql_db
     print ""
     print "Generated CSV file: "+outcsv_file
     print ""
     print "Movie files that begin with the following path are included in the list:"
     for filepath_begin in filepath_begin_list:
         print "  "+filepath_begin
-
-    return
-
-
-#------------------------------------------------------------------------------
-def ErrorMsg (msg):
-    """Print an error message to stderr.
-       Input:
-         msg: Error message string.
-       Return:
-         void.
-    """
-
-    global num_errors, output_cp
-
-    msg = "Error: "+msg
-
-    if type(msg) == unicode:
-        msgu = msg
-    else:
-        msgu = msg.decode("ascii")
-
-    text = msgu.encode(output_cp,'backslashreplace')
-
-    print >>sys.stderr, text
-    sys.stderr.flush()
-
-    num_errors += 1
-
-    return
-
-
-#------------------------------------------------------------------------------
-def Msg (msg):
-    """Print a message to stdout, unless quiet mode is active.
-       Input:
-         msg: Message string.
-       Return:
-         void.
-    """
-
-    global quiet_mode, output_cp
-
-    if quiet_mode == False:
-
-        if type(msg) == unicode:
-            msgu = msg
-        else:
-            msgu = msg.decode("ascii")
-
-        # print "Debug: msgu: type = "+str(type(msgu))+", repr = "+repr(msgu)
-
-        text = msgu.encode(output_cp,'backslashreplace')
-
-        # print "Debug: text: type = "+str(type(text))+", repr = "+repr(text)
-
-        print >>sys.stdout, text
-        sys.stdout.flush()
 
     return
 
@@ -177,6 +118,9 @@ def OutStr(db_value, disp_type=None):
 # main routine
 #
 
+num_errors = 0                  # global number of errors
+verbose_mode = False            # verbose mode, controlled by -v option
+
 
 #
 # command line parsing
@@ -186,13 +130,13 @@ _i = 1
 while _i < len(sys.argv):
     arg = sys.argv[_i]
     if arg[0] == "-":
-        if arg == "-?" or arg == "-h" or arg == "--help":
+        if arg == "-h" or arg == "--help":
             Usage()
             exit(100)
         elif arg == "-v":
-            quiet_mode = False
+            verbose_mode = True
         else:
-            ErrorMsg("Invalid command line option: "+arg)
+            utils.ErrorMsg("Invalid command line option: "+arg)
             exit(100)
     else:
         pos_argv.append(arg)
@@ -203,20 +147,21 @@ while _i < len(sys.argv):
 # more validiy checking on command line parameters
 #
 if len(pos_argv) > 0:
-    ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
     exit(100)
 
 if len(pos_argv) < 0:
-    ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
     exit(100)
 
-Msg( my_name+" Version "+my_version)
+utils.Msg( my_name+" Version "+version.__version__)
 
 # Connection to movie database
 
-Msg("Reading movie files from movies database ...")
+utils.Msg("Reading movie files from movies database ...")
 
-movies_conn = MySQLdb.connect(host=mysql_host,user=mysql_user,db=mysql_db,use_unicode=True)
+movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
+                               db=config.mysql_db, use_unicode=True, charset='utf8')
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
 
@@ -225,9 +170,7 @@ _cursor.execute("SELECT\
   Movie.OriginalTitle AS OriginalTitle,\
   Medium.SeriesTitle AS SeriesTitle,\
   Medium.EpisodeTitle AS EpisodeTitle,\
-  Medium.SeasonNumber AS SeasonNumber,\
-  Medium.EpisodeNumber AS EpisodeNumber,\
-  Medium.RunningNumber AS RunningNumber,\
+  Medium.EpisodeId AS EpisodeId,\
   IFNULL(Medium.ReleaseYearFile,Movie.ReleaseYear) AS ReleaseYear,\
   Medium.Duration AS Duration,\
   Medium.Language AS Language,\
@@ -294,12 +237,12 @@ for medium_row in medium_rowlist:
             medium_out_list.append(medium_row)
 
 
-Msg("Writing CSV output file: "+outcsv_file+" ...")
+utils.Msg("Writing CSV output file: "+outcsv_file+" ...")
 
 try:
     outcsv_fp = open(outcsv_file,"wb")
 except IOError as (errno, strerror):
-    ErrorMsg("Cannot open output file for writing: "+outcsv_file+", "+strerror)
+    utils.ErrorMsg("Cannot open output file for writing: "+outcsv_file+", "+strerror, num_errors)
 
 else:
     bom = "\xef\xbb\xbf"
@@ -309,9 +252,7 @@ else:
         '"Originaltitel",' +\
         '"Serientitel",' +\
         '"Episodentitel",' +\
-        '"Staffel",' +\
-        '"Episode",' +\
-        '"Lfd. Nummer",' +\
+        '"EpisodenId",' +\
         '"Jahr",' +\
         '"Länge [min]",' +\
         '"Sprache",' +\
@@ -358,9 +299,7 @@ else:
             '"'+OutStr(out_entry["OriginalTitle"])+'",'+\
             '"'+OutStr(out_entry["SeriesTitle"])+'",'+\
             '"'+OutStr(out_entry["EpisodeTitle"])+'",'+\
-            '"'+OutStr(out_entry["SeasonNumber"])+'",'+\
-            '"'+OutStr(out_entry["EpisodeNumber"])+'",'+\
-            '"'+OutStr(out_entry["RunningNumber"])+'",'+\
+            '"'+OutStr(out_entry["EpisodeId"])+'",'+\
             ''+OutStr(out_entry["ReleaseYear"],"int")+','+\
             ''+OutStr(out_entry["Duration"],"int")+','+\
             '"'+OutStr(out_entry["Language"])+'",'+\
@@ -413,8 +352,8 @@ else:
 
 
 if num_errors > 0:
-    ErrorMsg("Finished with "+str(num_errors)+" errors.")
+    utils.ErrorMsg("Finished with "+str(num_errors)+" errors.")
     exit(12)
 else:
+    utils.Msg("Success.")
     exit(0)
-

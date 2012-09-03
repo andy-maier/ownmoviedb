@@ -8,24 +8,30 @@
 '''Utilities for movies database'''
 
 from distutils.core import setup
+import os.path, sys
+
+# Execute moviedb/version.py using its absolute path, so that setup.py can be run with
+# any current working directory.
+version_py = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]),'moviedb/version.py'))
+execfile(version_py) # defines __version__
 
 setup(
-    name             = 'movies',
-    version          = '1.1.1',
+    name             = 'moviedb',
+    version          = __version__,
     description      = __doc__,
     long_description = __doc__,
     author           = 'Andreas Maier',
     author_email     = 'andreas.r.maier@gmx.de',
     url              = None,
     platforms        = ['any'],
-    py_modules       = ['movies_utils','movies_conf'],
-    scripts          = ['movies_check.bat','movies_check.py',
-                        'movies_genlist.bat','movies_genlist.py',
-                        'movies_linkmovies.bat','movies_linkmovies.py',
-                        'movies_listformymdb.bat','movies_listformymdb.py',
-                        'movies_updatemedia.bat','movies_updatemedia.py',
-                        'movies_updatemovies.bat','movies_updatemovies.py',
-                        'movies_dailyrun.bat'],
+    packages         = ['moviedb'],
+    scripts          = ['moviedb_scan_files.bat','moviedb_scan_files.py',
+                        'moviedb_import_movies.bat','moviedb_import_movies.py',
+                        'moviedb_link_movies.bat','moviedb_link_movies.py',
+                        'moviedb_gen_mymdb_missing.bat','moviedb_gen_mymdb_missing.py',
+                        'moviedb_gen_movielist.bat','moviedb_gen_movielist.py',
+                        'moviedb_check.bat','moviedb_check.py',
+                        'moviedb_dailyrun.bat'],
     classifiers      = [
         "Programming Language :: Python",
         "Operating System :: OS Independent",

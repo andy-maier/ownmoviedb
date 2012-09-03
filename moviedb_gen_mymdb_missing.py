@@ -2,26 +2,26 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
 #
-# This script lists movies that need MyMDb import data (i.e. that have no description etc)
-#
-# Invoke with '-?' or '--help' for help.
+# Writes a CSV file listing movies in the movie database that have no descriptive information.
+# Usage see below in Usage(), or invoke with '-h' or '--help'.
 #
 # Supported platforms:
 #   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
+#   Tested on Windows XP and Windows 7.
 #
 # Prerequisites:
 #   1. Python 2.7, available from http://www.python.org
 #
+# Change log:
+#   V1.0.1 2012-08-13
 
-my_name = "movies_listformymdb"
-my_version = "1.0.1"
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
 import MySQLdb
-from movies_conf import *
-from movies_utils import NormalizeTitle, StripSquareBrackets
+from moviedb import config, utils, version
+
+my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
 outfile_cp = "utf-8"            # code page used for output CSV file
 out_file = "mymdb_missing.csv"
@@ -31,11 +31,6 @@ filepath_begin_list = (         # file paths (or begins thereof) that will be li
   "\\Movies\\share\\Spielfilme",
   "\\Movies\\share\\Kinderfilme",
 )
-
-num_errors = 0                  # global number of errors
-quiet_mode = True               # quiet mode, controlled by -v option
-test_mode = False               # test mode, controlled by -t option
-update_all = False              # Update all movies, instead of just those whose records are outdated, controlled by -a option
 
 #------------------------------------------------------------------------------
 def Usage ():
@@ -47,18 +42,20 @@ def Usage ():
     """
 
     print ""
-    print "Lists movies in the movies database on a MySQL server that have no description etc. and"
-    print "writes a CSV output file with their movie titles and file path."
+    print "Writes a CSV file listing movies in the movie database that have no descriptive information."
+    print "The CSV file can be used to add movies to MyMDb or directly into the movie database."
     print ""
     print "Usage:"
     print "  "+my_name+" [options]"
     print ""
     print "Options:"
     print "  -v          Verbose mode: Display additional messages."
+    print "  -h, --help  Display this help text."
     print ""
-    print "MySQL server:"
-    print "  host: "+mysql_host+" (default port 3306)"
-    print "  user: "+mysql_user+" (no password)"
+    print "Movie database:"
+    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
+    print "  MySQL user: "+config.mysql_user+" (no password)"
+    print "  MySQL database: "+config.mysql_db
     print ""
     print "Filepaths on media server that are searched:"
     for filepath_begin in filepath_begin_list:
@@ -68,66 +65,12 @@ def Usage ():
 
 
 #------------------------------------------------------------------------------
-def ErrorMsg (msg):
-    """Print an error message to stderr.
-       Input:
-         msg: Error message string.
-       Return:
-         void.
-    """
-
-    global num_errors, output_cp
-
-    msg = "Error: "+msg
-
-    if type(msg) == unicode:
-        msgu = msg
-    else:
-        msgu = msg.decode("ascii")
-
-    text = msgu.encode(output_cp,'backslashreplace')
-
-    print >>sys.stderr, text
-    sys.stderr.flush()
-
-    num_errors += 1
-
-    return
-
-
-#------------------------------------------------------------------------------
-def Msg (msg):
-    """Print a message to stdout, unless quiet mode is active.
-       Input:
-         msg: Message string.
-       Return:
-         void.
-    """
-
-    global quiet_mode, output_cp
-
-    if quiet_mode == False:
-
-        if type(msg) == unicode:
-            msgu = msg
-        else:
-            msgu = msg.decode("ascii")
-
-        # print "Debug: msgu: type = "+str(type(msgu))+", repr = "+repr(msgu)
-
-        text = msgu.encode(output_cp,'backslashreplace')
-
-        # print "Debug: text: type = "+str(type(text))+", repr = "+repr(text)
-
-        print >>sys.stdout, text
-        sys.stdout.flush()
-
-    return
-
-
-#------------------------------------------------------------------------------
 # main routine
 #
+
+num_errors = 0                  # global number of errors
+verbose_mode = False            # verbose mode, controlled by -v option
+test_mode = False               # test mode, controlled by -t option
 
 
 #
@@ -138,17 +81,18 @@ _i = 1
 while _i < len(sys.argv):
     arg = sys.argv[_i]
     if arg[0] == "-":
-        if arg == "-?" or arg == "--help":
+        if arg == "-h" or arg == "--help":
             Usage()
             exit(100)
         elif arg == "-a":
             update_all = True
         elif arg == "-v":
-            quiet_mode = False
+            verbose_mode = True
         elif arg == "-t":
             test_mode = True
         else:
-            ErrorMsg("Invalid command line option: "+arg)
+            utils.ErrorMsg("Invalid command line option: "+arg)
+            exit(100)
     else:
         pos_argv.append(arg)
     _i += 1
@@ -158,17 +102,18 @@ while _i < len(sys.argv):
 # more validiy checking on command line parameters
 #
 if len(pos_argv) > 0:
-    ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
     exit(100)
 
 if len(pos_argv) < 0:
-    ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
     exit(100)
 
-Msg( my_name+" Version "+my_version)
+utils.Msg( my_name+" Version "+version.__version__)
 
 # Connection to movie database
-movies_conn = MySQLdb.connect(host=mysql_host,user=mysql_user,db=mysql_db,use_unicode=True)
+movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
+                               db=config.mysql_db, use_unicode=True, charset='utf8')
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
 _cursor.execute("SELECT * FROM Medium WHERE idMovie IS NULL AND idStatus IN ('WORK','SHARED','DISABLED')")
@@ -191,11 +136,11 @@ for medium_row in medium_rowlist:
             title = medium_row["Title"]
 
             if series_title != None:
-                title_pure = StripSquareBrackets(series_title)
+                title_pure = utils.StripSquareBrackets(series_title)
             else:
-                title_pure = StripSquareBrackets(title)
+                title_pure = utils.StripSquareBrackets(title)
 
-            title_pure_normalized = NormalizeTitle(title_pure)
+            title_pure_normalized = utils.NormalizeTitle(title_pure)
 
             if title_pure_normalized not in medium_out_dict:
 
@@ -206,23 +151,19 @@ for medium_row in medium_rowlist:
 
                 medium_out_dict[title_pure_normalized] = out_entry
 
-Msg("Found "+str(len(medium_out_dict))+" movie files without movie information")
-
-# Msg("Debug: medium_out_dict: "+repr(medium_out_dict))
+utils.Msg("Found "+str(len(medium_out_dict))+" movie files without movie information")
 
 
-Msg("Writing MyMDb import file: "+out_file+" ...")
+utils.Msg("Writing MyMDb import file: "+out_file+" ...")
 
 try:
     out_fp = open(out_file,"w")
 except IOError as (errno, strerror):
-    ErrorMsg("Cannot open output file for writing: "+out_file+", "+strerror)
+    utils.ErrorMsg("Cannot open output file for writing: "+out_file+", "+strerror, num_errors)
 
 else:
 
     out_key_list = sorted(list(medium_out_dict)) # list with keys of the dictionary
-
-    # Msg("Debug: out_key_list: "+repr(out_key_list))
 
     for title_pure_normalized in out_key_list:
 
@@ -262,8 +203,8 @@ else:
 
 
 if num_errors > 0:
-    ErrorMsg("Finished with "+str(num_errors)+" errors.")
+    utils.ErrorMsg("Finished with "+str(num_errors)+" errors.")
     exit(12)
 else:
+    utils.Msg("Success.")
     exit(0)
-

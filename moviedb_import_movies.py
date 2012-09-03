@@ -2,41 +2,36 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
 #
-# Usage see below in Usage(), or invoke with '-?' or '--help'.
+# Updates movie descriptions in the movie database from a MyMDb export spreadsheet.
+# Usage see below in Usage(), or invoke with '-h' or '--help'.
 #
 # Supported platforms:
 #   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
+#   Tested on Windows XP and Windows 7.
 #
 # Prerequisites:
 #   1. Python 2.7, available from http://www.python.org
 #
-# Debug:
-#   import pdb; pdb.set_trace()
-#
+# Change log:
+#   V1.0.3 2012-08-13
+#     Initial version with change log.
+#   V1.2.0 2012-09-02
+#     Renamed package to moviedb and restructured modules.
 
-my_name = "movies_updatemovies"
-my_version = "1.0.2"
 
 import re, sys, os.path
 import xlrd
 import csv, codecs, cStringIO
-# import ezodf   # ezodf is only supported for Python 3.x at this point
 import MySQLdb
-from movies_conf import *
+from moviedb import config, utils, version
 
+my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
 layouts = [                     # Layouts of data in spreadsheet
     ("mymdb", u"MyMDb layout: Export of MyMDb view '\u00DCbersicht', with certain fields."),
     ("direct", u"Direct layout: First row in sheet defines column names of Movie table."),
 ]
 
-num_errors = 0                  # global number of errors
-ss_file    = None               # spreadsheet file path
-ss_sheet   = None               # spreadsheet sheet name
-ss_layout  = None               # layout of data in sheet
-quiet_mode = True               # quiet mode, controlled by -v option
-update_all = False              # Update all movies, instead of just those whose records are outdated, controlled by -a option
 
 #------------------------------------------------------------------------------
 def Usage ():
@@ -48,14 +43,14 @@ def Usage ():
     """
 
     print ""
-    print "Updates movie descriptions in the movie database from a spreadsheet."
-    print "By default, only movies that need to be updated (based on the new vs. existing data) are updated."
+    print "Updates movie descriptions in the movie database from a MyMDb export spreadsheet."
+    print "By default, only movies that need to be updated based on the new vs. existing data are updated."
     print ""
     print "Usage:"
     print "  "+my_name+" [options]"
     print ""
     print "Required options:"
-    print "  -f file     Path name of the spreadsheet file (Excel and CSV only at this point)."
+    print "  -f file     Path name of the MyMDb export spreadsheet file (Excel and CSV only at this point)."
     print "  -s sheet    Name of the sheet within the spreadsheet."
     print "  -l layout   Layout of the data in the sheet. Possible layouts:"
     for _l in layouts:
@@ -65,11 +60,12 @@ def Usage ():
     print "Options:"
     print "  -a          Update all movies, instead of just those whose records are outdated."
     print "  -v          Verbose mode: Display additional messages."
+    print "  -h, --help  Display this help text."
     print ""
-    print "MySQL server:"
-    print "  host: "+mysql_host+" (default port 3306)"
-    print "  user: "+mysql_user+" (no password)"
-    print "  database: "+mysql_db
+    print "Movie database:"
+    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
+    print "  MySQL user: "+config.mysql_user+" (no password)"
+    print "  MySQL database: "+config.mysql_db
     print ""
     print "Examples:"
     print "  "+my_name+u" -v -f MyMDb_\u00DCbersicht.xls -s Sheet0 -l mymdb"
@@ -112,191 +108,6 @@ class UnicodeReader:
         return self
 
 
-#------------------------------------------------------------------------------
-def ErrorMsg (msg):
-    """Print an error message to stderr.
-       Input:
-         msg: Error message string.
-       Return:
-         void.
-    """
-
-    global num_errors, output_cp
-
-    msg = "Error: "+msg
-
-    if type(msg) == unicode:
-        msgu = msg
-    else:
-        msgu = msg.decode("ascii")
-
-    text = msgu.encode(output_cp,'backslashreplace')
-
-    print >>sys.stderr, text
-    sys.stderr.flush()
-
-    num_errors += 1
-
-    return
-
-
-#------------------------------------------------------------------------------
-def Msg (msg):
-    """Print a message to stdout, unless quiet mode is active.
-       Input:
-         msg: Message string.
-       Return:
-         void.
-    """
-
-    global quiet_mode, output_cp
-
-    if quiet_mode == False:
-
-        if type(msg) == unicode:
-            msgu = msg
-        else:
-            msgu = msg.decode("ascii")
-
-        # print "Debug: msgu: type = "+str(type(msgu))+", repr = "+repr(msgu)
-
-        text = msgu.encode(output_cp,'backslashreplace')
-
-        # print "Debug: text: type = "+str(type(text))+", repr = "+repr(text)
-
-        print >>sys.stdout, text
-        sys.stdout.flush()
-
-    return
-
-
-#------------------------------------------------------------------------------
-
-# Translation table for normalizing strings for comparison
-normalize_utrans_table = [
-    (228, 'ae'),  # a umlaut
-    (246, 'oe'),  # o umlaut
-    (252, 'ue'),  # u umlaut
-    (223, 'ss'),  # german sharp s
-    (196, 'Ae'),  # A umlaut
-    (214, 'Oe'),  # O umlaut
-    (220, 'Ue'),  # U umlaut
-    (225, 'a'),   # a acute
-    (224, 'a'),   # a grave
-    (226, 'a'),   # a circumflex
-    (229, 'a'),   # a ring
-    (231, 'c'),   # c cedil
-    (233, 'e'),   # e acute
-    (232, 'e'),   # e grave
-    (234, 'e'),   # e circumflex
-    (237, 'i'),   # i acute
-    (236, 'i'),   # i grave
-    (238, 'i'),   # i circumflex
-    (241, 'n'),   # n tilde
-    (243, 'o'),   # o acute
-    (242, 'o'),   # o grave
-    (244, 'o'),   # o circumflex
-    (250, 'u'),   # u acute
-    (249, 'u'),   # u grave
-    (251, 'u'),   # u circumflex
-    (193, 'A'),   # A acute
-    (192, 'A'),   # A grave
-    (194, 'A'),   # A circumflex
-    (197, 'A'),   # A ring
-    (199, 'C'),   # C cedil
-    (201, 'E'),   # E acute
-    (200, 'E'),   # E grave
-    (202, 'E'),   # E circumflex
-    (205, 'I'),   # I acute
-    (204, 'I'),   # I grave
-    (206, 'I'),   # I circumflex
-    (209, 'N'),   # N tilde
-    (211, 'O'),   # O acute
-    (210, 'O'),   # O grave
-    (212, 'O'),   # O circumflex
-    (218, 'U'),   # U acute
-    (217, 'U'),   # U grave
-    (219, 'U'),   # U circumflex
-    (32,  '  '),  # space (to handle ' aside of space)
-    (33,  ' '),   # !
-    (35,  ' '),   # #
-    (36,  ' '),   # $
-    (37,  ' '),   # %
-    (38,  ' '),   # &
-    (39,  ''),    # '
-    (40,  ' '),   # (
-    (41,  ' '),   # )
-    (42,  ' '),   # *
-    (43,  ' '),   # +
-    (44,  ' '),   # ,
-    (45,  ' '),   # -
-    (46,  ' '),   # .
-    (47,  ' '),   # /
-    (58,  ' '),   # :
-    (59,  ' '),   # ;
-    (61,  ' '),   # =
-    (63,  ' '),   # ?
-    (64,  ' '),   # @
-    (91,  ' '),   # [
-    (93,  ' '),   # ]
-    (95,  ' '),   # _
-]
-
-#------------------------------------------------------------------------------
-def NormalizeTitle(title):
-    # title is a unicode string
-
-    ntitle = NormalizeString(StripSquareBrackets(title))
-
-    return ntitle
-
-
-#------------------------------------------------------------------------------
-def NormalizeString(_str):
-    # _str is a unicode string
-
-    global normalize_utrans_table
-
-    if _str == None:
-        nstr = None
-    else:
-        nstr = _str
-        for fm_ord,to_str in normalize_utrans_table:
-            nstr = nstr.replace(unichr(fm_ord),to_str)
-        nstr = nstr.lower()
-        nstr = nstr.replace("  "," ")
-        nstr = nstr.replace("  "," ")
-        nstr = nstr.replace("  "," ")
-        nstr = nstr.strip(" ")
-
-    return nstr
-
-
-#------------------------------------------------------------------------------
-def StripSquareBrackets(movie_title):
-
-    if movie_title == None:
-        movie_title_stripped = None
-    else:
-        m = re.match("(.*)(\[.*\])(.*)",movie_title)
-        if m:
-            _tp1, _sb, _tp2 = m.groups()
-            movie_title_stripped = (_tp1 + _tp2).replace(" , ",", ").replace("  "," ").strip(" ")
-        else:
-            movie_title_stripped = movie_title
-
-    return movie_title_stripped
-
-
-#------------------------------------------------------------------------------
-def SqlLiteral(_str):
-    # _str is a (unicode) string for use in a SQL literal
-
-    nstr = _str
-    nstr = nstr.replace("'","\\'")
-
-    return nstr
-
 
 #------------------------------------------------------------------------------
 def GetDirectorNameLists(ss_row, movie_dn, ss_layout):
@@ -316,7 +127,7 @@ def GetDirectorNameLists(ss_row, movie_dn, ss_layout):
     for director_name in _director_name_list:
 
         director_name = director_name.strip(" ")
-        normalized_director_name_list.append(NormalizeString(director_name))
+        normalized_director_name_list.append(utils.NormalizeString(director_name))
         director_name_list.append(director_name)
         if directors != "":
             directors += ", "
@@ -343,7 +154,7 @@ def GetActorNameLists(ss_row, movie_dn, ss_layout):
     for actor_name in _actor_name_list:
 
         actor_name = actor_name.strip(" ")
-        normalized_actor_name_list.append(NormalizeString(actor_name))
+        normalized_actor_name_list.append(utils.NormalizeString(actor_name))
         actor_name_list.append(actor_name)
         if actors != "":
             actors += ", "
@@ -355,7 +166,7 @@ def GetActorNameLists(ss_row, movie_dn, ss_layout):
 #------------------------------------------------------------------------------
 def GetGenreIdList(ss_row, movie_dn):
 
-    global genre_nname_dict, genre_rowlist, genre_gid_dict
+    global genre_nname_dict, genre_rowlist, genre_gid_dict, num_errors
 
     colname = colname_m_l_dict[ss_layout]["Genres"]
     genre_ustr = None if colname == None or colname not in ss_row else ss_row[colname]
@@ -371,7 +182,7 @@ def GetGenreIdList(ss_row, movie_dn):
     for genre_name in genre_name_list:
 
         genre_name = genre_name.strip(" ")
-        normalized_genre_name = NormalizeString(genre_name)
+        normalized_genre_name = utils.NormalizeString(genre_name)
 
         if normalized_genre_name in genre_nname_dict:
 
@@ -387,7 +198,7 @@ def GetGenreIdList(ss_row, movie_dn):
             genres += org_genre_row["Name"]
 
         else:
-            ErrorMsg("Unknown genre name (not found in Genre table): "+genre_name)
+            utils.ErrorMsg("Unknown genre name (not found in Genre table): "+genre_name, num_errors)
 
     return (genreid_list,genres)
 
@@ -395,21 +206,19 @@ def GetGenreIdList(ss_row, movie_dn):
 #------------------------------------------------------------------------------
 def OriginalGenreId(genreid,nesting):
 
-    global genre_gid_dict, genre_rowlist
+    global genre_gid_dict, genre_rowlist, num_errors
 
     genre_row = genre_rowlist[genre_gid_dict[genreid]]
 
-    # Msg("Debug: OriginalGenreId(nesting="+str(nesting)+") called for genre id = "+str(genreid)+", name = '"+repr(genre_row["Name"])+"'")
     synof_genreid = genre_row["idSynonymOfGenre"]
 
     if nesting > 10:
-        ErrorMsg("Maximum nesting of "+str(nesting)+" for synonym genres exceeded when reaching genre with id "+str(genreid)+": '"+repr(genre_row["Name"])+"'")
+        utils.ErrorMsg("Maximum nesting of "+str(nesting)+" for synonym genres exceeded when reaching genre with id "+str(genreid)+": '"+repr(genre_row["Name"])+"'", num_errors)
         return genreid
 
     if synof_genreid != None:
         org_genreid = OriginalGenreId(synof_genreid,nesting+1)
     else:
-        # Msg("Debug: OriginalGenreId(nesting="+str(nesting)+"): found org genre id = "+str(genreid))
         org_genreid = genreid
 
     return org_genreid
@@ -431,9 +240,7 @@ colname_m_l_dict = {            # Dictionary of column name translations from Mo
         "OriginalSeriesTitle":           "Kommentar",       # entry OriginalSeriesTitle:
         "EpisodeTitle":                  "Kommentar",       # entry EpisodeTitle:
         "OriginalEpisodeTitle":          "Kommentar",       # entry OriginalEpisodeTitle:
-        "SeasonNumber":                  "Kommentar",       # entry SeasonNumber:
-        "EpisodeNumber":                 "Kommentar",       # entry EpisodeNumber:
-        "RunningNumber":                 "Kommentar",       # entry RunningNumber:
+        "EpisodeId":                     "Kommentar",       # entry EpisodeId:
         "CoverImage":                    None,
         "Duration":                     u"L\u00E4nge",
         "ReleaseYear":                   "Jahr",
@@ -465,9 +272,7 @@ colname_m_l_dict = {            # Dictionary of column name translations from Mo
         "OriginalSeriesTitle":           "OriginalSeriesTitle",
         "EpisodeTitle":                  "EpisodeTitle",
         "OriginalEpisodeTitle":          "OriginalEpisodeTitle",
-        "SeasonNumber":                  "SeasonNumber",
-        "EpisodeNumber":                 "EpisodeNumber",
-        "RunningNumber":                 "RunningNumber",
+        "EpisodeId":                     "EpisodeId",
         "CoverImage":                    "CoverImage",
         "Duration":                      "Duration",
         "ReleaseYear":                   "ReleaseYear",
@@ -510,9 +315,7 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
         movie_row["OriginalSeriesTitle"] = None
         movie_row["EpisodeTitle"] = None
         movie_row["OriginalEpisodeTitle"] = None
-        movie_row["SeasonNumber"] = None
-        movie_row["EpisodeNumber"] = None
-        movie_row["RunningNumber"] = None
+        movie_row["EpisodeId"] = None
 
         kommentar = ss_row["Kommentar"]
 
@@ -547,22 +350,10 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
                     movie_row["OriginalEpisodeTitle"] = original_episode_title.strip(" ")
                     continue # for loop
 
-                m = re.match("^SeasonNumber: (.*)$",k_line)
+                m = re.match("^EpisodeId: (.*)$",k_line)
                 if m:
-                    season_number = m.group(1)
-                    movie_row["SeasonNumber"] = season_number.strip(" ")
-                    continue # for loop
-
-                m = re.match("^EpisodeNumber: (.*)$",k_line)
-                if m:
-                    episode_number = m.group(1)
-                    movie_row["EpisodeNumber"] = episode_number.strip(" ")
-                    continue # for loop
-
-                m = re.match("^RunningNumber: (.*)$",k_line)
-                if m:
-                    running_number = m.group(1)
-                    movie_row["RunningNumber"] = running_number.strip(" ")
+                    episode_id = m.group(1)
+                    movie_row["EpisodeId"] = episode_id.strip(" ")
                     continue # for loop
 
     else: # direct
@@ -579,14 +370,8 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
         colname = colname_m_l_dict[ss_layout]["OriginalEpisodeTitle"]
         movie_row["OriginalEpisodeTitle"] = None if colname == None or colname not in ss_row else ss_row[colname]
 
-        colname = colname_m_l_dict[ss_layout]["SeasonNumber"]
-        movie_row["SeasonNumber"] = None if colname == None or colname not in ss_row else ss_row[colname]
-
-        colname = colname_m_l_dict[ss_layout]["EpisodeNumber"]
-        movie_row["EpisodeNumber"] = None if colname == None or colname not in ss_row else ss_row[colname]
-
-        colname = colname_m_l_dict[ss_layout]["RunningNumber"]
-        movie_row["RunningNumber"] = None if colname == None or colname not in ss_row else ss_row[colname]
+        colname = colname_m_l_dict[ss_layout]["EpisodeId"]
+        movie_row["EpisodeId"] = None if colname == None or colname not in ss_row else ss_row[colname]
 
         
     # movie_row["CoverImage"] = None
@@ -738,7 +523,7 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
 #------------------------------------------------------------------------------
 def UpdateMovie(ss_row, movie_row, ss_layout):
 
-    global movies_conn, genre_rowlist, genre_gid_dict
+    global movies_conn, genre_rowlist, genre_gid_dict, num_errors, verbose_mode
 
     max_dar_failure    = 0.02      # allowable relative difference when comparing aspect ratios expressed as float numbers
     max_rating_failure = 0.001     # allowable relative difference when comparing ratings expressed as float numbers
@@ -751,12 +536,8 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 
     new_movie_row = GetMovieRow(ss_row, movie_dn, ss_layout)
 
-    # Msg("Debug: ss_row = "+str(ss_row))
-    # Msg("Debug: movie_row = "+str(movie_row))
-    # Msg("Debug: new_movie_row = "+str(new_movie_row))
-
     if int(new_movie_row["ReleaseYear"]) != int(movie_row["ReleaseYear"]):
-        ErrorMsg("Internal: Release year not equal while updating movie entry with id "+str(idMovie)+": existing: '"+str(int(movie_row["ReleaseYear"]))+"', new: '"+str(int(new_movie_row["ReleaseYear"]))+"'")
+        utils.ErrorMsg("Internal: Release year not equal while updating movie entry with id "+str(idMovie)+": existing: '"+str(int(movie_row["ReleaseYear"]))+"', new: '"+str(int(new_movie_row["ReleaseYear"]))+"'", num_errors)
 
     diff_field_list = list()
     if new_movie_row["Title"               ] != movie_row["Title"               ]:
@@ -771,12 +552,8 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
         diff_field_list.append("EpisodeTitle")
     if new_movie_row["OriginalEpisodeTitle"] != movie_row["OriginalEpisodeTitle"]:
         diff_field_list.append("OriginalEpisodeTitle")
-    if new_movie_row["SeasonNumber"        ] != movie_row["SeasonNumber"        ]:
-        diff_field_list.append("SeasonNumber")
-    if new_movie_row["EpisodeNumber"       ] != movie_row["EpisodeNumber"       ]:
-        diff_field_list.append("EpisodeNumber")
-    if new_movie_row["RunningNumber"       ] != movie_row["RunningNumber"       ]:
-        diff_field_list.append("RunningNumber")
+    if new_movie_row["EpisodeId"           ] != movie_row["EpisodeId"           ]:
+        diff_field_list.append("EpisodeId")
     if new_movie_row["Duration"            ] != movie_row["Duration"            ]:
         diff_field_list.append("Duration")
     if new_movie_row["OriginatingCountries"] != movie_row["OriginatingCountries"]:
@@ -824,9 +601,7 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
         cv += "OriginalSeriesTitle = %(OriginalSeriesTitle)s, "
         cv += "EpisodeTitle = %(EpisodeTitle)s, "
         cv += "OriginalEpisodeTitle = %(OriginalEpisodeTitle)s, "
-        cv += "SeasonNumber = %(SeasonNumber)s, "
-        cv += "EpisodeNumber = %(EpisodeNumber)s, "
-        cv += "RunningNumber = %(RunningNumber)s, "
+        cv += "EpisodeId = %(EpisodeId)s, "
         #cv += "CoverImage = %(CoverImage)s, "
         cv += "Duration = %(Duration)s, "
         cv += "Description = %(Description)s, "
@@ -848,8 +623,6 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
         cv += "OFDbRaters = %(OFDbRaters)s"
 
         sql = u"UPDATE Movie SET "+cv+" WHERE idMovie = '"+str(idMovie)+"'"
-        #Msg("Debug: sql = "+repr(sql))
-        #Msg("Debug: new movie = "+repr(new_movie_row))
 
         medium_cursor = movies_conn.cursor(MySQLdb.cursors.Cursor)
         # medium_cursor.execute('SET NAMES utf8;')
@@ -861,8 +634,6 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 
 
     # Update genres for this movie
-
-    # Msg("Debug: Updating genres for movie: "+movie_dn)
 
     updated_genres = False
 
@@ -899,7 +670,7 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
             updated_genres = True
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-            _cursor.execute(u"UPDATE Movie SET Genres = '"+SqlLiteral(new_genres)+"' WHERE idMovie='"+str(idMovie)+"'")
+            _cursor.execute(u"UPDATE Movie SET Genres = '"+utils.SqlLiteral(new_genres)+"' WHERE idMovie='"+str(idMovie)+"'")
             _cursor.close()
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
@@ -915,8 +686,6 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 
     # Update persons for this movie
 
-    # Msg("Debug: Updating persons for movie: "+movie_dn)
-
     _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
     _cursor.execute(u"SELECT * FROM MoviePersonView WHERE idMovie='"+str(idMovie)+"'")
     existing_moviepersonview_rowlist = _cursor.fetchall()
@@ -929,10 +698,10 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
     existing_director_name_list = []
     for _row in existing_moviepersonview_rowlist:
         if _row["idPersonRoleType"] == 'ACTOR':
-            existing_normalized_actor_name_list.append(NormalizeString(_row["Name"]))
+            existing_normalized_actor_name_list.append(utils.NormalizeString(_row["Name"]))
             existing_actor_name_list.append(_row["Name"])
         elif _row["idPersonRoleType"] == 'DIRECTOR':
-            existing_normalized_director_name_list.append(NormalizeString(_row["Name"]))
+            existing_normalized_director_name_list.append(utils.NormalizeString(_row["Name"]))
             existing_director_name_list.append(_row["Name"])
         # we ignore person types 'MUSIC' and 'AUTHOR' for now
 
@@ -940,8 +709,6 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
     (new_normalized_actor_name_list,new_actor_name_list,new_actors) = GetActorNameLists(ss_row, movie_dn, ss_layout)
 
     # Update Directors
-
-    # Msg("Debug: Movie directors: existing: "+repr(existing_director_name_list)+", new: "+repr(new_director_name_list))
 
     updated_directors = False
 
@@ -965,7 +732,7 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
             updated_directors = True
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-            _cursor.execute(u"UPDATE Movie SET Directors = '"+SqlLiteral(new_directors)+"' WHERE idMovie='"+str(idMovie)+"'")
+            _cursor.execute(u"UPDATE Movie SET Directors = '"+utils.SqlLiteral(new_directors)+"' WHERE idMovie='"+str(idMovie)+"'")
             _cursor.close()
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
@@ -974,12 +741,10 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 
             for director_name in new_director_name_list:
                 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-                _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+SqlLiteral(director_name)+"', 'DIRECTOR')")
+                _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+utils.SqlLiteral(director_name)+"', 'DIRECTOR')")
                 _cursor.close()
 
     # Update Actors
-
-    # Msg("Debug: Movie actors: existing: "+repr(existing_actor_name_list)+", new: "+repr(new_actor_name_list))
 
     updated_actors = False
 
@@ -1003,7 +768,7 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
             updated_actors = True
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-            _cursor.execute(u"UPDATE Movie SET Actors = '"+SqlLiteral(new_actors)+"' WHERE idMovie='"+str(idMovie)+"'")
+            _cursor.execute(u"UPDATE Movie SET Actors = '"+utils.SqlLiteral(new_actors)+"' WHERE idMovie='"+str(idMovie)+"'")
             _cursor.close()
 
             _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
@@ -1012,30 +777,29 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 
             for actor_name in new_actor_name_list:
                 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-                _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+SqlLiteral(actor_name)+"', 'ACTOR')")
+                _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+utils.SqlLiteral(actor_name)+"', 'ACTOR')")
                 _cursor.close()
 
 
     if updated_fields or updated_genres or updated_directors or updated_actors:
 
-        Msg("Updated movie: "+movie_dn)
+        utils.Msg("Updated movie: "+movie_dn, verbose_mode)
 
         if updated_fields:
             for diff_field in diff_field_list:
-                Msg("Difference in field "+diff_field+": existing: '"+repr(movie_row[diff_field])+"', new: '"+repr(new_movie_row[diff_field])+"'")
+                utils.Msg("Difference in field "+diff_field+": existing: '"+repr(movie_row[diff_field])+"', new: '"+repr(new_movie_row[diff_field])+"'", verbose_mode)
 
         if updated_genres:
-            Msg("Difference in Genres: existing: "+str(existing_genreid_list)+", new: "+str(new_genreid_list))
+            utils.Msg("Difference in Genres: existing: "+str(existing_genreid_list)+", new: "+str(new_genreid_list), verbose_mode)
 
         if updated_directors:
-            Msg("Difference in Directors: existing: "+repr(existing_director_name_list)+", new: "+repr(new_director_name_list))
+            utils.Msg("Difference in Directors: existing: "+repr(existing_director_name_list)+", new: "+repr(new_director_name_list), verbose_mode)
 
         if updated_actors:
-            Msg("Difference in Actors")
+            utils.Msg("Difference in Actors", verbose_mode)
 
     else:
-        pass
-        # Msg("Debug: No need to update movie: "+movie_dn)
+        pass # No need to update movie
 
 
     movies_conn.commit()
@@ -1044,6 +808,8 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 #------------------------------------------------------------------------------
 def AddMovie(ss_row, ss_layout):
 
+    global verbose_mode
+    
     colname = colname_m_l_dict[ss_layout]["Title"]
     new_title = ss_row[colname]
 
@@ -1052,13 +818,9 @@ def AddMovie(ss_row, ss_layout):
 
     movie_dn = new_title+" ("+str(new_year)+")"
 
-    Msg("Adding movie: "+movie_dn)
-
-    # Msg("Debug: ss_row = "+str(ss_row))
+    utils.Msg("Adding movie: "+movie_dn, verbose_mode)
 
     new_movie_row = GetMovieRow(ss_row, movie_dn, ss_layout)
-
-    # Msg("Debug: new_movie_row = "+str(new_movie_row))
 
     c = ""          # column list for INSERT
     v = ""          # value list for INSERT
@@ -1074,12 +836,8 @@ def AddMovie(ss_row, ss_layout):
     v += "%(EpisodeTitle)s, "
     c += "OriginalEpisodeTitle, "
     v += "%(OriginalEpisodeTitle)s, "
-    c += "SeasonNumber, "
-    v += "%(SeasonNumber)s, "
-    c += "EpisodeNumber, "
-    v += "%(EpisodeNumber)s, "
-    c += "RunningNumber, "
-    v += "%(RunningNumber)s, "
+    c += "EpisodeId, "
+    v += "%(EpisodeId)s, "
     #c += "CoverImage, "
     #v += "%(CoverImage)s, "
     c += "Duration, "
@@ -1120,7 +878,6 @@ def AddMovie(ss_row, ss_layout):
     v += "%(OFDbRaters)s"
 
     sql = u"INSERT INTO Movie ("+c+") VALUES ( "+v+")"
-    # Msg("Debug: sql = "+sql)
 
     medium_cursor = movies_conn.cursor(MySQLdb.cursors.Cursor)
 
@@ -1135,12 +892,8 @@ def AddMovie(ss_row, ss_layout):
     _cursor.close()
     idMovie = _rowlist[0]["id"]
 
-    # Msg("Debug: Added row into Movie table with id = "+str(idMovie))
-
 
     # Add genres for this movie
-
-    # Msg("Debug: Adding genres for movie: "+movie_dn)
 
     (new_genreid_list,new_genres) = GetGenreIdList(ss_row, movie_dn)
 
@@ -1161,8 +914,6 @@ def AddMovie(ss_row, ss_layout):
 
     # Add persons for this movie
 
-    # Msg("Debug: Adding persons for movie: "+movie_dn)
-
     (new_normalized_director_name_list,new_director_name_list,new_directors) = GetDirectorNameLists(ss_row, movie_dn, ss_layout)
     (new_normalized_actor_name_list,new_actor_name_list,new_actors) = GetActorNameLists(ss_row, movie_dn, ss_layout)
 
@@ -1172,21 +923,21 @@ def AddMovie(ss_row, ss_layout):
     _cursor.close()
 
     _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-    _cursor.execute(u"UPDATE Movie SET Directors = '"+SqlLiteral(new_directors)+"' WHERE idMovie='"+str(idMovie)+"'")
+    _cursor.execute(u"UPDATE Movie SET Directors = '"+utils.SqlLiteral(new_directors)+"' WHERE idMovie='"+str(idMovie)+"'")
     _cursor.close()
 
     for director_name in new_director_name_list:
         _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-        _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+SqlLiteral(director_name)+"', 'DIRECTOR')")
+        _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+utils.SqlLiteral(director_name)+"', 'DIRECTOR')")
         _cursor.close()
 
     _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-    _cursor.execute(u"UPDATE Movie SET Actors = '"+SqlLiteral(new_actors)+"' WHERE idMovie='"+str(idMovie)+"'")
+    _cursor.execute(u"UPDATE Movie SET Actors = '"+utils.SqlLiteral(new_actors)+"' WHERE idMovie='"+str(idMovie)+"'")
     _cursor.close()
 
     for actor_name in new_actor_name_list:
         _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-        _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+SqlLiteral(actor_name)+"', 'ACTOR')")
+        _cursor.execute(u"INSERT INTO MoviePerson (idMovie, Name, idPersonRoleType) VALUES ('"+str(idMovie)+"', '"+utils.SqlLiteral(actor_name)+"', 'ACTOR')")
         _cursor.close()
 
 
@@ -1309,7 +1060,7 @@ countrycode_de_dict = dict( {   # dictionary of country codes (subset)
 def GetCountryCode(land,movie_dn):
     # land: comma separated list of country names in mixed case in german (unicode string)
 
-    global countrycode_de_dict
+    global countrycode_de_dict, num_errors
 
     land_l = land.lower()
 
@@ -1318,7 +1069,7 @@ def GetCountryCode(land,movie_dn):
     if land_l in countrycode_de_dict:
         cc = countrycode_de_dict[land_l]
     else:
-        ErrorMsg("Did not find country code for country '"+land+"' for movie: "+movie_dn)
+        utils.ErrorMsg("Did not find country code for country '"+land+"' for movie: "+movie_dn, num_errors)
         cc = None
 
     return cc
@@ -1337,6 +1088,8 @@ def GetAspectRatio(bildformat,movie_dn):
     #  dar_f: aspect ratio as a float number, e.g. 1.778
     #  dar_s: aspect ratio as a display string, e.g. "16x9"
 
+    global num_errors
+    
     result_delimiter = "x"    # delimiter between width and height to be used in result
     max_dar_failure = 0.02        # max failure for recognizing whole ratios
 
@@ -1349,8 +1102,6 @@ def GetAspectRatio(bildformat,movie_dn):
             bf = bildformat[0:bf_pp].strip(" ")
         else:
             bf = bildformat.strip(" ")
-
-        # Msg("Debug: bf = '"+bf+"'")
 
         # process the format of the remaining text
 
@@ -1371,7 +1122,7 @@ def GetAspectRatio(bildformat,movie_dn):
             elif isEqualFloat(dar_f, float(16)/float(9), max_dar_failure):
                 dar_s = "16"+result_delimiter+"9"
             else:
-                ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column (1 dar_f="+str(dar_f)+") of spreadsheet data for movie: "+movie_dn)
+                utils.ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column (1 dar_f="+str(dar_f)+") of spreadsheet data for movie: "+movie_dn, num_errors)
                 dar_s = str(dar_f)
         elif re.match("^[0-9]+\.[0-9]+\:[0-9]+$", bf):
             nom,den = bf.split(":")
@@ -1383,17 +1134,15 @@ def GetAspectRatio(bildformat,movie_dn):
             elif isEqualFloat(dar_f, float(16)/float(9), max_dar_failure):
                 dar_s = "16"+result_delimiter+"9"
             else:
-                ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column (2 dar_f="+str(dar_f)+") of spreadsheet data for movie: "+movie_dn)
+                utils.ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column (2 dar_f="+str(dar_f)+") of spreadsheet data for movie: "+movie_dn, num_errors)
                 dar_s = str(dar_f)
         else:
-            ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column of spreadsheet data for movie: "+movie_dn)
+            utils.ErrorMsg("Unknown format '"+bildformat+"' for 'bildformat' column of spreadsheet data for movie: "+movie_dn, num_errors)
             dar_s = bf
             dar_f = None
     else:
             dar_s = None
             dar_f = None
-
-    # Msg("Debug: dar_s = '"+repr(dar_s)+"', dar_f = "+repr(dar_f))
 
     return dar_f, dar_s
 
@@ -1444,8 +1193,6 @@ def isEqualFloat(float1, float2, max_failure):
 
         failure = ffloat1 / ffloat2 - 1
 
-        # Msg("Debug: ffloat1="+str(ffloat1)+" ffloat2="+str(ffloat2)+" failure="+str(failure))
-
         if abs(failure) <= max_failure:
             eq = True
         else:
@@ -1457,10 +1204,7 @@ def isEqualFloat(float1, float2, max_failure):
 #------------------------------------------------------------------------------
 def GetLanguageCode(sprache,movie_dn):
 
-    global languagecode_de_dict
-
-    # Msg("Debug: type sprache = "+str(type(sprache)))
-    # Msg("Debug: sprache = '"+str(sprache)+"'")
+    global languagecode_de_dict, num_errors
 
     if sprache == None or sprache == "":
         lc = None
@@ -1471,7 +1215,7 @@ def GetLanguageCode(sprache,movie_dn):
         if sprache_l in languagecode_de_dict:
             lc = languagecode_de_dict[sprache_l]
         else:
-            ErrorMsg("Did not find language code for language '"+sprache+"' for movie: "+movie_dn)
+            utils.ErrorMsg("Did not find language code for language '"+sprache+"' for movie: "+movie_dn, num_errors)
             lc = None
 
     return lc
@@ -1480,33 +1224,33 @@ def GetLanguageCode(sprache,movie_dn):
 #------------------------------------------------------------------------------
 def GetIdVideoQuality(name, file):
 
-    global idvideoquality_dict
+    global idvideoquality_dict, num_errors
 
     if name in idvideoquality_dict:
         id = idvideoquality_dict[name]
     else:
         id = None
-        ErrorMsg("Video quality name '"+name+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Video quality name '"+name+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdContainerFormat(field_value, file):
 
-    global idcontainerformat_dict
+    global idcontainerformat_dict, num_errors
 
     if field_value in idcontainerformat_dict:
         id = idcontainerformat_dict[field_value]
     else:
         id = None
-        ErrorMsg("Container format field value '"+field_value+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Container format field value '"+field_value+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdVideoFormat(format_field_value, profile_field_value, file):
 
-    global fixedvideoformat_list
+    global fixedvideoformat_list, num_errors
 
     id = None
     for _row in fixedvideoformat_list:
@@ -1519,14 +1263,14 @@ def GetIdVideoFormat(format_field_value, profile_field_value, file):
                 break
 
     if id == None:
-        ErrorMsg("Video format field value '"+format_field_value+"' and profile field value '"+str(profile_field_value)+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Video format field value '"+format_field_value+"' and profile field value '"+str(profile_field_value)+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdAudioFormat(format_field_value, profile_field_value, file):
 
-    global fixedaudioformat_list
+    global fixedaudioformat_list, num_errors
 
     id = None
     for _row in fixedaudioformat_list:
@@ -1539,46 +1283,46 @@ def GetIdAudioFormat(format_field_value, profile_field_value, file):
                 break
 
     if id == None:
-        ErrorMsg("Audio format field value '"+format_field_value+"' and profile field value '"+str(profile_field_value)+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Audio format field value '"+format_field_value+"' and profile field value '"+str(profile_field_value)+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdVideoFramerateMode(field_value, file):
 
-    global idvideoframeratemode_dict
+    global idvideoframeratemode_dict, num_errors
 
     if field_value in idvideoframeratemode_dict:
         id = idvideoframeratemode_dict[field_value]
     else:
         id = None
-        ErrorMsg("Video framerate mode field value '"+field_value+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Video framerate mode field value '"+field_value+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdAudioBitrateMode(field_value, file):
 
-    global idaudiobitratemode_dict
+    global idaudiobitratemode_dict, num_errors
 
     if field_value in idaudiobitratemode_dict:
         id = idaudiobitratemode_dict[field_value]
     else:
         id = None
-        ErrorMsg("Audio bitrate mode field value '"+field_value+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Audio bitrate mode field value '"+field_value+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
 #------------------------------------------------------------------------------
 def GetIdCabinet(smb_server_resource, file):
 
-    global idcabinet_dict
+    global idcabinet_dict, num_errors
 
     if smb_server_resource in idcabinet_dict:
         id = idcabinet_dict[smb_server_resource]
     else:
         id = None
-        ErrorMsg("Media cabinet for SMB server resource '"+smb_server_resource+"' not found in movie database, file: "+file)
+        utils.ErrorMsg("Media cabinet for SMB server resource '"+smb_server_resource+"' not found in movie database, file: "+file, num_errors)
 
     return id
 
@@ -1588,6 +1332,13 @@ def GetIdCabinet(smb_server_resource, file):
 #
 
 
+num_errors = 0                  # global number of errors
+ss_file    = None               # spreadsheet file path
+ss_sheet   = None               # spreadsheet sheet name
+ss_layout  = None               # layout of data in sheet
+verbose_mode = False            # verbose mode, controlled by -v option
+update_all = False              # Update all movies, instead of just those whose records are outdated, controlled by -a option
+
 #
 # command line parsing
 #
@@ -1596,33 +1347,34 @@ _i = 1
 while _i < len(sys.argv):
     arg = sys.argv[_i]
     if arg[0] == "-":
-        if arg == "-?" or arg == "--help":
+        if arg == "-h" or arg == "--help":
             Usage()
             exit(100)
         elif arg == "-f":
             _i += 1
             if _i == len(sys.argv):
-                ErrorMsg("Missing file parameter for -f option")
-                break
+                utils.ErrorMsg("Missing file parameter for -f option")
+                exit(100)
             ss_file = sys.argv[_i]
         elif arg == "-s":
             _i += 1
             if _i == len(sys.argv):
-                ErrorMsg("Missing sheet parameter for -s option")
-                break
+                utils.ErrorMsg("Missing sheet parameter for -s option")
+                exit(100)
             ss_sheet = sys.argv[_i]
         elif arg == "-l":
             _i += 1
             if _i == len(sys.argv):
-                ErrorMsg("Missing layout parameter for -l option")
-                break
+                utils.ErrorMsg("Missing layout parameter for -l option")
+                exit(100)
             ss_layout = sys.argv[_i]
         elif arg == "-a":
             update_all = True
         elif arg == "-v":
-            quiet_mode = False
+            verbose_mode = True
         else:
-            ErrorMsg("Invalid command line option: "+arg)
+            utils.ErrorMsg("Invalid command line option: "+arg)
+            exit(100)
     else:
         pos_argv.append(arg)
     _i += 1
@@ -1632,30 +1384,31 @@ while _i < len(sys.argv):
 # more validiy checking on command line parameters
 #
 if ss_file == None:
-    ErrorMsg("Required option not specified: -f file")
+    utils.ErrorMsg("Required option not specified: -f file")
     exit(100)
 
 if ss_sheet == None:
-    ErrorMsg("Required option not specified: -s sheet")
+    utils.ErrorMsg("Required option not specified: -s sheet")
     exit(100)
 
 if ss_layout == None:
-    ErrorMsg("Required option not specified: -l layout")
+    utils.ErrorMsg("Required option not specified: -l layout")
     exit(100)
 
 if len(pos_argv) > 0:
-    ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too many command line arguments, invoke with '--help' for help.")
     exit(100)
 
 if len(pos_argv) < 0:
-    ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
+    utils.ErrorMsg("Too few command line arguments, invoke with '--help' for help.")
     exit(100)
 
-Msg( my_name+" Version "+my_version)
+utils.Msg( my_name+" Version "+version.__version__)
 
 
 # Connection to movie database
-movies_conn = MySQLdb.connect(host=mysql_host,user=mysql_user,db=mysql_db,use_unicode=True,charset='utf8')
+movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
+                               db=config.mysql_db, use_unicode=True, charset='utf8')
 
 
 # Read the spreadsheet
@@ -1668,10 +1421,8 @@ if ss_ext == ".xls":
     try:
         ss_xls = xlrd.open_workbook(ss_file)
     except Exception as exc:
-        ErrorMsg("Cannot open Excel spreadsheet for reading: "+repr(ss_file)+", "+repr(exc))
+        utils.ErrorMsg("Cannot open Excel spreadsheet for reading: "+repr(ss_file)+", "+repr(exc), num_errors)
         exit(12)
-
-    # print "Debug: Encoding: "+repr(ss_xls.encoding)
 
     _sheet = ss_xls.sheet_by_name(ss_sheet)
     ss_rowlist = []
@@ -1697,7 +1448,7 @@ elif ss_ext == ".ods" and False: # currently disabled because ezodf works only f
         ss_ods = ezodf.opendoc(ss_file)
     except Exception as exc:
         print "Debug: exc="+repr(exc)
-        ErrorMsg("Cannot open ODS spreadsheet for reading: "+repr(ss_file)+", "+repr(exc))
+        utils.ErrorMsg("Cannot open ODS spreadsheet for reading: "+repr(ss_file)+", "+repr(exc), num_errors)
         exit(12)
 
     _sheet = ss_ods.sheet[ss_sheet]
@@ -1722,10 +1473,8 @@ elif ss_ext == ".csv":
     try:
         ss_csv = UnicodeReader(open(ss_file, 'rb'), encoding="utf-8", delimiter=',', quotechar='"', doublequote=True)
     except Exception as exc:
-        ErrorMsg("Cannot open CSV spreadsheet for reading: "+repr(ss_file)+", "+repr(exc))
+        utils.ErrorMsg("Cannot open CSV spreadsheet for reading: "+repr(ss_file)+", "+repr(exc), num_errors)
         exit(12)
-
-    # print "Debug: Encoding: "+repr(ss_xls.encoding)
 
     ss_rowlist = []
     col_titlelist = []
@@ -1735,11 +1484,8 @@ elif ss_ext == ".csv":
             # The first row contains the column names
             for col in row:
                 bom = hex(ord(col[0]))
-                # print "Debug: BOM char: "+repr(bom)
-                # print "Debug: first col: "+repr(col)+", type: "+str(type(col))
                 if hex(ord(col[0])) == "0xfeff":  # remove BOM (somewhat quirky ...)
                     col = col[1:].strip('"')
-                    # print "Debug: First column after removing BOM: "+repr(col)
                 col_titlelist.append(col)
         else:
             ss_row = dict()
@@ -1753,10 +1499,10 @@ elif ss_ext == ".csv":
     # Todo: close spreadsheet file
 
 else:
-    ErrorMsg("Invalid spreadsheet file extension: "+ss_ext)
+    utils.ErrorMsg("Invalid spreadsheet file extension: "+ss_ext)
     exit(12)
 
-Msg("Found "+str(len(ss_rowlist))+" movies in spreadsheet: "+repr(ss_file))
+utils.Msg("Found "+str(len(ss_rowlist))+" movies in spreadsheet: "+repr(ss_file))
 
 
 # Read the movie descriptions
@@ -1766,7 +1512,7 @@ _cursor.execute(u"SELECT * FROM Movie")
 movie_rowlist = _cursor.fetchall()
 _cursor.close()
 
-Msg("Found "+str(len(movie_rowlist))+" movie descriptions in movie database (Movie table)")
+utils.Msg("Found "+str(len(movie_rowlist))+" movie descriptions in movie database (Movie table)")
 
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
@@ -1794,12 +1540,9 @@ genre_nname_dict = dict()   # dictionary of known movie genres with access by no
                             # value: index into genre_rowlist, 0-based
 i = 0
 for genre_row in genre_rowlist:
-    genrenname = NormalizeString(genre_row["Name"])
+    genrenname = utils.NormalizeString(genre_row["Name"])
     genre_nname_dict[genrenname] = i
     i += 1
-
-# Msg("Debug: genre_nname_dict = "+str(genre_nname_dict))
-# Msg("Debug: genre_rowlist = "+str(genre_rowlist))
 
 
 # Build dictionary of current Movie table, for fast access
@@ -1811,11 +1554,12 @@ movie_tn_y_dict = dict()     # dictionary of movies with access by normalized ti
 i = 0
 for movie_row in movie_rowlist:
 
-    title_normalized = NormalizeTitle(movie_row["Title"])
+    title_normalized = utils.NormalizeTitle(movie_row["Title"])
     year = int(movie_row["ReleaseYear"])
 
     if year == None:
-        ErrorMsg("Movie database inconsistency: Movie with id "+str(movie_row["idMovie"])+" has no release year: '"+movie_row["Title"]+"'")
+        utils.ErrorMsg("Movie database inconsistency: Movie with id "+str(movie_row["idMovie"])+\
+                       " has no release year: '"+movie_row["Title"]+"'", num_errors)
         # TBD: Update existing movie entry instead of ignoring the existing entry and adding a new one.
     else:
 
@@ -1824,7 +1568,8 @@ for movie_row in movie_rowlist:
             existing_movie_row = movie_rowlist[movie_tn_y_dict[tn_y_key]]
             existing_movie_dn = existing_movie_row["Title"] + " (" + str(int(existing_movie_row["ReleaseYear"])) + ")"
             movie_dn = movie_row["Title"] + " (" + str(int(movie_row["ReleaseYear"])) + ")"
-            ErrorMsg("Movie database inconsistency: Movie with id "+str(movie_row["idMovie"])+" is a duplicate of movie with id "+str(existing_movie_row["idMovie"])+": '"+movie_dn+"'")
+            utils.ErrorMsg("Movie database inconsistency: Movie with id "+str(movie_row["idMovie"])+\
+                           " is a duplicate of movie with id "+str(existing_movie_row["idMovie"])+": '"+movie_dn+"'", num_errors)
         else:
             movie_tn_y_dict[tn_y_key] = i
 
@@ -1833,7 +1578,7 @@ for movie_row in movie_rowlist:
 
 # Copy the spreadsheet data into the Movie table, replacing movies that already exist
 
-Msg("Updating movie descriptions from spreadsheet ...")
+utils.Msg("Updating movie descriptions from spreadsheet ...")
 
 ss_tn_y_dict = dict()     # dictionary of movies in spreadsheet, with access by normalized title + year
                                   # key: normalized title '#' release year
@@ -1850,14 +1595,14 @@ for ss_row in ss_rowlist:
     colname = colname_m_l_dict[ss_layout]["ReleaseYear"]
     new_year =  int(ss_row[colname])
 
-    new_title_normalized = NormalizeTitle(new_title)
+    new_title_normalized = utils.NormalizeTitle(new_title)
 
     # We need to ensure that the resulting Movie rows have a release year,
     # so we reject any import row that does not have a release year.
 
     if new_year == None:
 
-        ErrorMsg("Skipping movie in spreadsheet that does not have a release year: "+new_title)
+        utils.ErrorMsg("Skipping movie in spreadsheet that does not have a release year: "+new_title, num_errors)
 
     else:
 
@@ -1879,7 +1624,7 @@ for ss_row in ss_rowlist:
 
         if tn_y_key in ss_tn_y_dict:
             ss_dn = new_title_normalized + " (" + str(new_year) + ")"
-            ErrorMsg("Spreadsheet data inconsistency: Multiple movies with same title and year: "+ss_dn)
+            utils.ErrorMsg("Spreadsheet data inconsistency: Multiple movies with same title and year: "+ss_dn, num_errors)
         else:
             ss_tn_y_dict[tn_y_key] = i
 
@@ -1887,8 +1632,8 @@ for ss_row in ss_rowlist:
 
 
 if num_errors > 0:
-    ErrorMsg("Finished with "+str(num_errors)+" errors.")
+    utils.ErrorMsg("Finished with "+str(num_errors)+" errors.")
     exit(12)
 else:
+    utils.Msg("Success.")
     exit(0)
-
