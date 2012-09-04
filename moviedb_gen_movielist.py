@@ -171,7 +171,7 @@ _cursor.execute("SELECT\
   Medium.SeriesTitle AS SeriesTitle,\
   Medium.EpisodeTitle AS EpisodeTitle,\
   Medium.EpisodeId AS EpisodeId,\
-  IFNULL(Medium.ReleaseYearFile,Movie.ReleaseYear) AS ReleaseYear,\
+  IFNULL(Medium.ReleaseYear,Movie.ReleaseYear) AS ReleaseYear,\
   Medium.Duration AS Duration,\
   Medium.Language AS Language,\
   FixedQuality.Name AS Quality,\
@@ -222,7 +222,7 @@ FROM Medium\
   LEFT JOIN Cabinet ON Cabinet.idCabinet = Medium.idCabinet \
 WHERE Medium.idStatus IN ('SHARED','WORK','DISABLED')\
   AND Medium.idMediumType IN ('FILE') \
-ORDER BY Medium.Title, Medium.ReleaseYearFile")
+ORDER BY Title, ReleaseYear")
 
 medium_rowlist = _cursor.fetchall()
 _cursor.close()

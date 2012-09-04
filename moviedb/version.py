@@ -14,9 +14,5 @@ Author:
   Andreas Maier, maiera@de.ibm.com
 '''
 
-# Change log for this file:
-#   2012-09-02 V1.2.0 AM
-#       Initial version.
 
-
-__version__ = '1.2.0'               # Version of this package.
+__version__ = '1.2.1'               # Version of this package.

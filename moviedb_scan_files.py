@@ -96,16 +96,22 @@ def GetMovieInfo(moviefile_uncpath):
         return None
 
     try:
-        parsed_filename_title = utils.ParseComplexTitle(parsed_filename["complex_title"])
+        parsed_complex_title = utils.ParseComplexTitle(parsed_filename["complex_title"])
     except utils.ParseError as exc:
         utils.ErrorMsg(u"Skipping file: "+unicode(exc))
         return None
 
     movie = dict()
 
-    movie["fn_title"] = parsed_filename["complex_title"]
-    movie["fn_year"] = parsed_filename_title["year"]
+    # These values are defaults from the file name and will be overridden from the title tag, if present.
+    movie["title"] = parsed_complex_title["title"]
+    movie["year"] = parsed_complex_title["year"]
+    movie["series_title"] = parsed_complex_title["series_title"]
+    movie["episode_title"] = parsed_complex_title["episode_title"]
+    movie["episode_id"] = parsed_complex_title["episode_id"]
     movie["status"] = sourcepath_dict[moviefile_uncpath]["status"]
+
+    # These values remain
     movie["fn_uncut"] = "1" if parsed_filename["uncut"] else "0"
     movie["fn_container_format"] = parsed_filename["container"]
     movie["fn_threed"] = parsed_filename["3d"]
@@ -140,16 +146,9 @@ def GetMovieInfo(moviefile_uncpath):
     end_time = datetime.datetime.now()
     mediainfo_duration = (end_time - start_time).total_seconds()
 
-    if mediainfo_duration > 10:
+    if mediainfo_duration > 30:
         utils.Msg("Large mediainfo_cli execution time of "+str(round(mediainfo_duration))+" s for file: \""+moviefile_uncpath+"\"")
 
-    movie["title"] = movie["fn_title"]      # used as default if MediaInfo does not work
-    movie["year"] = movie["fn_year"]        # used as default if MediaInfo does not work
-    movie["tag_title"] = None
-    movie["tag_year"] = None
-    movie["series_title"] = None
-    movie["episode_title"] = None
-    movie["episode_id"] = None
     movie["duration_min"] = None
     movie["container_format"] = None
     movie["idContainerFormat"] = None
@@ -268,18 +267,16 @@ def GetMovieInfo(moviefile_uncpath):
                                     utils.ErrorMsg(u"Missing media info: "+unicode(exc))
                                 else:
                                     complex_title = parsed_filename_tag["complex_title"]
-                                    movie["tag_title"] = complex_title
-                                    movie["title"] = complex_title
                                     try:
-                                        parsed_title_tag = utils.ParseComplexTitle(complex_title)
+                                        parsed_complex_title_tag = utils.ParseComplexTitle(complex_title)
                                     except utils.ParseError as exc:
                                         utils.ErrorMsg(u"Missing media info: "+unicode(exc))
                                     else:
-                                        movie["series_title"] = parsed_title_tag["series_title"]
-                                        movie["episode_title"] = parsed_title_tag["episode_title"]
-                                        movie["episode_id"] = parsed_title_tag["episode_id"]
-                                        movie["tag_year"] = parsed_title_tag["year"]
-                                        movie["year"] = parsed_title_tag["year"]
+                                        movie["title"] = parsed_complex_title_tag["title"]
+                                        movie["year"] = parsed_complex_title_tag["year"]
+                                        movie["series_title"] = parsed_complex_title_tag["series_title"]
+                                        movie["episode_title"] = parsed_complex_title_tag["episode_title"]
+                                        movie["episode_id"] = parsed_complex_title_tag["episode_id"]
                             _elem = general_elem.find("Duration")
                             if _elem != None:
                                 _v = _elem.text   # e.g. "1h 36mn" or "28mn 43s"
@@ -476,11 +473,7 @@ def UpdateFile(moviefile_uncpath):
     now = str(datetime.datetime.now())[0:19]
     cv += "TSUpdated = '"+now+"', "
     cv += "TSVerified = '"+now+"', "
-    cv += "TitleTag = %(tag_title)s, "
-    cv += "TitleFile = %(fn_title)s, "
     cv += "Title = %(title)s, "
-    cv += "ReleaseYearTag = %(tag_year)s, "
-    cv += "ReleaseYearFile = %(fn_year)s, "
     cv += "ReleaseYear = %(year)s, "
     cv += "SeriesTitle = %(series_title)s, "
     cv += "EpisodeTitle = %(episode_title)s, "
@@ -583,16 +576,8 @@ def AddFile(moviefile_uncpath):
     v += "'"+now+"', "
     c += "TSVerified, "
     v += "'"+now+"', "
-    c += "TitleTag, "
-    v += "%(tag_title)s, "
-    c += "TitleFile, "
-    v += "%(fn_title)s, "
     c += "Title, "
     v += "%(title)s, "
-    c += "ReleaseYearTag, "
-    v += "%(tag_year)s, "
-    c += "ReleaseYearFile, "
-    v += "%(fn_year)s, "
     c += "ReleaseYear, "
     v += "%(year)s, "
     c += "SeriesTitle, "

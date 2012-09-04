@@ -15,6 +15,9 @@
 #   V1.0.0 2012-07-22
 #     Added support for MediaInfo 0.7.58, by changing --output=xml to --output=XML
 #     Added U+00AA and U+0152 to xmlrep_trans translation list to fix issue with invalid XML produced by MediaInfo.
+#   V1.2.1 2012-09-03
+#     Improved algorithm to detect series.
+#     No longer removing bracket text from titles.
 
 
 import re, string, sys, subprocess, os, os.path, fnmatch, time
@@ -344,6 +347,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         Syntax used for format description:
             {} surround variables
             [] surround optional parts
+            () surround choices, separated with |
         Format:
             {complextitle}([3D ][{lang} ]{q} {dar}[ {techcomm}])[.{dup}][.{partial}][.uncut].{ext}
         Where:
@@ -383,7 +387,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
 
     Returns:
         If the filename could be parsed, returns a dictionary with information from the movie file name:
-            "complex_title" Complex title in the file name, as unicode type.
+            "complex_title" Title as specified in the file name, as unicode type.
             "3d"            Boolean indicating whether the movie is some sort of 3D movie.
             "audio_lang"    Language code of the audio stream in the movie, as str type (e.g. "de").
                             If the file name does not indicate a language for the audio stream, the
@@ -407,8 +411,6 @@ def ParseMovieFilename(filename,tolerate_noext=False):
 
         If the filename could not be parsed, raises a ParseError exception with an error message stating the issue.
     '''
-
-    # print "Debug: ParseMovieFilename: filename: \""+repr(filename)+"\""
 
     rv = dict()         # return value dictionary, see description.
 
@@ -440,7 +442,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         rv["3d"] = False
 
     # Determine language indicators (including subtitles)
-    m = re.match("([a-z]{2,3})(-U(?:-([a-z]{2,3}))?)?",qblock_words[0])
+    m = re.match(r"^([a-z]{2,3})(-U(?:-([a-z]{2,3}))?)?$",qblock_words[0])
     if m != None:
         rv["audio_lang"] = m.group(1)               # The specified audio language
         _gl = len(m.groups())
@@ -519,8 +521,6 @@ def ParseMovieFilename(filename,tolerate_noext=False):
     if len(part2_words) > 0:
         raise ParseError(u"Superflous component after quality block in movie file name: \""+filename+"\"")
 
-    # print "Debug: ParseMovieFilename: Return: "+repr(rv)
-
     return rv
 
 
@@ -529,90 +529,103 @@ def ParseComplexTitle(complex_title):
     '''Parse the complex title of a movie and return the information as a dictionary.
 
     Parameters:
-        complex_title       Complex title, as unicode type, in the following format.
+        complex_title       Complex title, in the following format.
+                            Type can be str or unicode, the value is converted to unicode before processing it.
 
-    Complex title format:
-        1. Optional bracket text is determined and removed: Up to one occurrence of "[text]".
-        2. Optional release year is determined and removed: Rightmost occurrence of "(NNNN)".
-        3. Remaining complex title text must have one of the following formats (for syntax, see ParseFilename):
+    Format of complex title:
+
+        Syntax used for format description:
+            {} surround variables
+            [] surround optional parts
+            () surround choices, separated with |
+
+        1. Optional release year is determined and removed: Rightmost occurrence of "(NNNN)".
+        2. Remaining title text must have one of the following formats:
+
             {title}
-            {series_title}( - |, ){ep_id}[ - {ep_title}]
-       Where:
+            {series_title}( - |, ){episode_id}[ - {episode_title}]
+
+        Where:
+
             {title}         Title of movie that is not an episode of a series.
-                            Must not contain " - ".
+                            May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
             {series_title}  Title of movie series this movie is an episode of.
-                            Must not contain " - " or ", ".
-            {ep_title}      Title of this episode.
-                            May contain " - " or ", ".
-            {ep_id}         Identifier for this episode, in one of the following formats:
-                                {seq_id}             Sequential identifier of episode within the whole series
-                                {sea_id}.{sep_id}    Identifiers for season, and for episode within season.
-                                {seq_main_id}-{seq_sub_id}    Sequential identifier of episode within the whole series,
-                                                     consisting of main identifier and sub identifier.
-                                {part_key} {seq_id}  Sequential identifier of episode within the whole series,
-                                                     with part_key being some keyword such as "Part", "Teil", "Folge".
+                            May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
+            {episode_title} Title of this episode.
+                            May contain " - " or ", "; matching is non-greedy.
+            {episode_id}    Identifier for this episode, in one of the following formats:
+                                {sequential}         Sequential identifier of episode within the whole series.
+                                {season}.{episode}   Identifiers for season and for episode within season.
+                                {part} {sequential}  Sequential identifier of episode within the whole series,
+                                                     with {part} being some keyword such as "Part", "Teil", "Folge".
                             Typically these identifiers are integer numbers, but they can also be text.
-                            Each {*_id} part must not contain blanks, dots or minuses.
 
     Returns:
         If the complex title could be parsed, returns a dictionary with information from the title:
-            "bracket_text"  Text in square brackets (without the brackets), as unicode type.
-                            None, if no bracket text was present.
-            "year"          Release year of the movie, as a string.
-                            None, if no release year was specified.
-            "clean_title"   Title without bracket text and release year (for both episodes and other movies).
-            "series_title"  For a title that is an episode of a series, the series title.
+            "title"         Title (complex title with "(year)" removed), as unicode type.
+            "year"          Release year of the movie if one was specified, as unicode type.
+                            If no release year was specified, None.
+            "series_title"  For a movie that is an episode of a series, the series title, as unicode type.
                             Otherwise, None.
-            "episode_title" For a title that is an episode of a series, the episode title.
+            "episode_title" For a movie that is an episode of a series, the episode title, as unicode type.
                             Otherwise, or if there is no episode title specified, None.
-            "episode_id"    For a title that is an episode of a series, the identifier for this episode,
-                            matching {ep_id} in the syntax definition.
-                            Otherwise, None.
-                            Examples: "1", "01", "1.07", "01.07", "S.1a", "217a", "Folge 2", "part 1.1", "Spezial 2012-08-25"
+            "episode_id"    For a movie that is an episode of a series, the identifier for this episode,
+                            as unicode type. Otherwise, None.
 
         If the complex title could not be parsed, raises a ParseError exception with an error message stating the issue.
+        (Note: At this point, no ParseError exceptions are raised, but the caller should assume they can be raised).
     '''
-
-    # print "Debug: ParseComplexTitle: complex_title: \""+repr(complex_title)+"\""
 
     rv = dict()         # return value dictionary, see description.
 
-    # Determine and remove bracket text
-    m = re.match("^(.*)\[(.*?)\](.*)$",complex_title)
-    if m != None:
-        rv["bracket_text"] = m.group(2).strip(" ")
-        complex_title = m.group(1).strip(" ") + " " + m.group(3).strip(" ")
-    else:
-        rv["bracket_text"] = None
+    if type(complex_title) == str:
+        complex_title = unicode(complex_title)
 
-    # Determine and remove release year
-    m = re.match("^(.*)\(([0-9]{4})\)(.*)$",complex_title)
+    complex_title = complex_title.strip(" ")
+
+    # Determine and remove release year.
+    # Matching of first ".*" is greedy, so it matches the rightmost occurrence of the year.
+    # We are matching and removing " (NNNN)", including a leading blank.
+    m = re.match(r"^(.*) \(([0-9]{4})\)(.*)$",complex_title)
     if m != None:
         rv["year"] = m.group(2)
-        complex_title = m.group(1).strip(" ") + " " + m.group(3).strip(" ")
+        complex_title = m.group(1)
+        if m.group(3) != None:
+            complex_title += m.group(3)
     else:
         rv["year"] = None
 
-    rv["clean_title"] = complex_title
+    rv["title"] = complex_title
 
-    # Determine whether title is episode
+    # Determine episode and series information
     rv["series_title"] = None
     rv["episode_id"] = None
     rv["episode_title"] = None
-    m = re.match("^(.+?)(?: - |, )(.+?)(?: - (.+))?$",complex_title)
-    if m != None:
-        possible_episode_id = m.group(2).strip(" ")
-        m2 = re.match("^([^ .\-]+([.\-][^ .\-]+)?|[A-za-z]+ [0-9\.-]+)$",possible_episode_id)
-        if m2 != None:
-            # Movie is an episode
-            rv["series_title"] = m.group(1).strip(" ")
-            rv["episode_id"] = possible_episode_id
-            if m.group(3) != None:
-                rv["episode_title"] = m.group(3).strip(" ")
-            else:
-                rv["episode_title"] = None
 
-    # print "Debug: ParseComplexTitle: Return: "+repr(rv)
+    # print "Debug: Trying to find episode in complex_title "+repr(complex_title)
+
+    # We match everything in one expression, because the sequences " - " and ", " that introduce
+    # the episode identifier can also occur in the series title.
+    # Note: Matching of choices is first match wins. So the order of choices matters, particularly if one choice
+    # if a subset of the other (e.g. "NN" and "NN.NN"), or if episode identifiers occur multiple times,
+    # for example: "Series - 01.1 - Episode, Teil 1", in which case the order determines precedence.
+    match_str = r"^(.+?)"+\
+                r"( - [0-9A-Zx]{1,3}[.\-][0-9x]{1,2}[a-z]?(?:\+[0-9A-Zx]{1,3}[.\-][0-9x]{1,2}[a-z]?)*"+\
+                r"| - [0-9Xx]{1,4}[a-z]?(?:\+[0-9Xx]{1,4}[a-z]?)*"+\
+                r"| - Spezial [0-9x]{4}-[0-9x]{2}-[0-9x]{2}"+\
+                r"|, (?:Teil|[Pp]art|Folge|Buch|[Bb]ook|Episode|Film) (?:[0-9.]{1,5}(?:\+[0-9.]{1,5})*|[IVX]{1,4}(?:\+[IVX]{1,4})*))"+\
+                r"(?: - (.+))?$"
+    m = re.match(match_str,complex_title)
+    if m != None:
+        # Movie is an episode of a series
+        # print "Debug: groups: "+repr(m.groups())
+        rv["series_title"] = m.group(1).strip(" ")
+        rv["episode_id"] = m.group(2).lstrip(" - ").lstrip(", ").strip(" ")
+        # print "Debug: Found episode_id "+repr(rv["episode_id"])
+        if m.group(3) != None:
+            rv["episode_title"] = m.group(3).strip(" ")
+        else:
+            rv["episode_title"] = None
 
     return rv
 
