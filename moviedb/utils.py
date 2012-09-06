@@ -539,7 +539,7 @@ def ParseComplexTitle(complex_title):
             [] surround optional parts
             () surround choices, separated with |
 
-        1. Optional release year is determined and removed: Rightmost occurrence of "(NNNN)".
+        1. Optional release year is determined and removed: Rightmost occurrence of " (NNNN)".
         2. Remaining title text must have one of the following formats:
 
             {title}
@@ -551,14 +551,14 @@ def ParseComplexTitle(complex_title):
                             May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
             {series_title}  Title of movie series this movie is an episode of.
                             May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
-            {episode_title} Title of this episode.
-                            May contain " - " or ", "; matching is non-greedy.
             {episode_id}    Identifier for this episode, in one of the following formats:
                                 {sequential}         Sequential identifier of episode within the whole series.
                                 {season}.{episode}   Identifiers for season and for episode within season.
                                 {part} {sequential}  Sequential identifier of episode within the whole series,
                                                      with {part} being some keyword such as "Part", "Teil", "Folge".
                             Typically these identifiers are integer numbers, but they can also be text.
+            {episode_title} Title of this episode.
+                            May contain " - " or ", "; matching is non-greedy.
 
     Returns:
         If the complex title could be parsed, returns a dictionary with information from the title:
@@ -567,10 +567,10 @@ def ParseComplexTitle(complex_title):
                             If no release year was specified, None.
             "series_title"  For a movie that is an episode of a series, the series title, as unicode type.
                             Otherwise, None.
-            "episode_title" For a movie that is an episode of a series, the episode title, as unicode type.
-                            Otherwise, or if there is no episode title specified, None.
             "episode_id"    For a movie that is an episode of a series, the identifier for this episode,
                             as unicode type. Otherwise, None.
+            "episode_title" For a movie that is an episode of a series, the episode title, as unicode type.
+                            Otherwise, or if there is no episode title specified, None.
 
         If the complex title could not be parsed, raises a ParseError exception with an error message stating the issue.
         (Note: At this point, no ParseError exceptions are raised, but the caller should assume they can be raised).
@@ -628,6 +628,34 @@ def ParseComplexTitle(complex_title):
             rv["episode_title"] = None
 
     return rv
+
+
+#------------------------------------------------------------------------------
+def HasEpisodeDescription(series_title, episode_id):
+    '''Determine whether a movie is expected to have a separate movie description for each episode,
+    or for the entire series (which in this case is likely a mini-series) or movie that is not an episode.
+    
+    Parameters:
+        series_title        For a movie that is an episode of a series, the series title, as unicode type.
+                            Otherwise, None.
+        episode_id          For a movie that is an episode of a series, the identifier for this episode,
+                            as unicode type. Otherwise, None.
+
+    Returns:
+        Boolean indicating whether the movie is expected to have a movie description for this episode (if True),
+        or for the entire series or title (if False).
+    '''
+
+    if episode_id == None or series_title == None:
+        has_episode_desc = False
+    else:        
+        m = re.match(r"^(Teil|[Pp]art) .+$",episode_id)
+        if m != None:
+            has_episode_desc = False
+        else:
+            has_episode_desc = True
+
+    return has_episode_desc
 
 
 #------------------------------------------------------------------------------

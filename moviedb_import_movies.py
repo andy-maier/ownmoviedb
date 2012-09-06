@@ -898,7 +898,7 @@ def AddMovie(ss_row, ss_layout):
     (new_genreid_list,new_genres) = GetGenreIdList(ss_row, movie_dn)
 
     _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
-    _cursor.execute(u"UPDATE Movie SET Genres = '"+SqlLiteral(new_genres)+"' WHERE idMovie='"+str(idMovie)+"'")
+    _cursor.execute(u"UPDATE Movie SET Genres = '"+utils.SqlLiteral(new_genres)+"' WHERE idMovie='"+str(idMovie)+"'")
     _cursor.close()
 
     # Just to be on the safe side...

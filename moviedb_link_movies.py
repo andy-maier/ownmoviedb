@@ -14,6 +14,11 @@
 #
 # Change log:
 #   V1.0.1 2012-08-13
+#   V1.2.1 2012-09-04
+#     Improved algorithm to match movie files and movie descriptions.
+#   V1.2.2 2012-09-05
+#     Changed matching algorithm to consider episode ids "Teil" and "Part" as part of a mini-series
+#     whose movie description is for the entire mini-series (and not per episode).
 
 
 import re, sys, os.path
@@ -33,12 +38,13 @@ def Usage ():
     """
 
     print ""
-    print "Links movie descriptions to media files in the movie database."
+    print "Links media files to movie descriptions in the movie database."
     print ""
     print "Usage:"
     print "  "+my_name+" [options]"
     print ""
     print "Options:"
+    print "  -r          Reset (unlink) all links before linking again."
     print "  -v          Verbose mode: Display additional messages."
     print "  -vm         Verbose mode: Display additional messages on matching movie file and movie description."
     print "  -h, --help  Display this help text."
@@ -53,21 +59,78 @@ def Usage ():
 
 
 #------------------------------------------------------------------------------
-def SetIdMovieInMedium(new_idMovie, idMedium, movie_dn):
+def SetMovieLinkInMedium(movie_row, medium_row):
 
     global num_errors, verbose_mode
 
-    utils.Msg("Linking movie file to movie description: "+movie_dn, verbose_mode)
+    utils.Msg("Linking movie file '"+os.path.basename(medium_row["FilePath"])+"'"+\
+              " to movie description '"+movie_row["Title"]+" ("+str(movie_row["ReleaseYear"])+")'",
+              verbose_mode)
 
-    sql = "UPDATE Medium SET idMovie = '"+str(new_idMovie)+"' WHERE idMedium = '"+str(idMedium)+"'"
+    sql = "UPDATE Medium SET idMovie = '"+str(movie_row["idMovie"])+"'"+\
+          " WHERE idMedium = '"+str(medium_row["idMedium"])+"'"
 
     medium_cursor = movies_conn.cursor(MySQLdb.cursors.Cursor)
-
     medium_cursor.execute(sql)
-
     medium_cursor.close()
-
     movies_conn.commit()
+
+
+#------------------------------------------------------------------------------
+def ResetMovieLinksInMedium():
+
+    global num_errors, verbose_mode
+
+    utils.Msg("Resetting all links of movie files to movie descriptions.", verbose_mode)
+
+    sql = "UPDATE Medium SET idMovie = NULL WHERE idMovie IS NOT NULL"
+
+    medium_cursor = movies_conn.cursor(MySQLdb.cursors.Cursor)
+    medium_cursor.execute(sql)
+    medium_cursor.close()
+    movies_conn.commit()
+
+
+#------------------------------------------------------------------------------
+def MatchDictAndLink(medium_row, movie_dict_key, movie_dict, match_desc):
+
+    global num_errors, verbosematching_mode
+
+    movie_row = None
+
+    if movie_dict_key in movie_dict:
+
+        movie_dict_value = movie_dict[movie_dict_key]
+        if type(movie_dict_value) == list:
+            i_list = movie_dict_value
+            if len(i_list) == 1:
+                i = i_list[0]
+            else:  # more than one matching movie
+                _txt = ""
+                for _i in i_list:
+                    _movie_row = movie_rowlist[_i]
+                    _txt += "  movie description "+str(_movie_row["idMovie"])+": "+\
+                            "'"+_movie_row["Title"]+" ("+str(_movie_row["ReleaseYear"])+")'\n"
+                utils.ErrorMsg("Not linking movie file that matches more than one movie description by "+match_desc+"\n"+\
+                               "  movie file: '"+os.path.basename(medium_row["FilePath"])+"'\n"+\
+                               _txt, num_errors)
+                i = None
+        else:
+            i = movie_dict_value
+            
+        if i != None:
+            movie_row = movie_rowlist[i]
+            if verbosematching_mode:
+                utils.Msg("  Found movie description "+str(movie_row["idMovie"])+" by matching "+match_desc)
+            if medium_row["idMovie"] != movie_row["idMovie"]:
+                SetMovieLinkInMedium(movie_row, medium_row)
+            #else:
+            #    print "Debug: movie id: "+str(movie_row["idMovie"])+", movie id in medium: "+str(medium_row["idMovie"])
+    else:
+        if verbosematching_mode:
+            utils.Msg("  No movie description found by matching "+match_desc)
+
+    return movie_row
 
 
 #------------------------------------------------------------------------------
@@ -78,6 +141,7 @@ def SetIdMovieInMedium(new_idMovie, idMedium, movie_dn):
 num_errors = 0                  # global number of errors
 verbose_mode = False            # verbose mode, controlled by -v option
 verbosematching_mode = False    # verbose matching mode, controlled by -vm option
+reset = False                   # reset links before linking, controlled by -r option
 
 #
 # command line parsing
@@ -90,6 +154,8 @@ while _i < len(sys.argv):
         if arg == "-h" or arg == "--help":
             Usage()
             exit(100)
+        elif arg == "-r":
+            reset = True
         elif arg == "-v":
             verbose_mode = True
         elif arg == "-vm":
@@ -121,6 +187,9 @@ movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
                                db=config.mysql_db, use_unicode=True, charset='utf8')
 
 
+if reset:
+    ResetMovieLinksInMedium()
+
 # Retrieve all movie descriptions
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
@@ -128,7 +197,7 @@ _cursor.execute(u"SELECT * FROM Movie")
 movie_rowlist = _cursor.fetchall()
 _cursor.close()
 
-utils.Msg("Found "+str(len(movie_rowlist))+" movie descriptions in movie database (Movie table)")
+utils.Msg("Found "+str(len(movie_rowlist))+" movie descriptions in movie database.")
 
 
 # Retrieve all movie files
@@ -138,13 +207,12 @@ _cursor.execute(u"SELECT * FROM Medium")
 medium_rowlist = _cursor.fetchall()
 _cursor.close()
 
-utils.Msg("Found "+str(len(medium_rowlist))+" movie files in movie database (Medium table)")
-
+utils.Msg("Found "+str(len(medium_rowlist))+" movie files in movie database.")
 
 movies_conn.commit()
 
 
-utils.Msg("Linking movie files to movie descriptions in movie database ...")
+utils.Msg("Linking movie files in movie database to movie descriptions ...")
 
 
 # Build dictionaries for fast access during matching
@@ -157,20 +225,20 @@ movie_otn_y_dict = dict()       # dictionary of movies
                                 # key: normalized original title '#' release year
                                 # value: index into movie_rowlist array (0-based)
 
-movie_stn_etn_y_dict = dict()   # dictionary of movies
-                                # key: normalized series title '#' normalized episode title '#' release year
+#movie_stn_y_dict = dict()       # dictionary of movies
+#                                # key: normalized series title '#' release year
+#                                # value: index into movie_rowlist array (0-based)
+
+#movie_ostn_y_dict = dict()      # dictionary of movies
+#                                # key: normalized original series title '#' release year
+#                                # value: index into movie_rowlist array (0-based)
+
+movie_stn_ein_y_dict = dict()   # dictionary of movies
+                                # key: normalized series title '#' normalized episode id '#' release year
                                 # value: index into movie_rowlist array (0-based)
 
-movie_ostn_oetn_y_dict = dict() # dictionary of movies
-                                # key: normalized original series title '#' normalized original episode title '#' release year
-                                # value: index into movie_rowlist array (0-based)
-
-movie_stn_tn_y_dict = dict()    # dictionary of movies
-                                # key: normalized series title '#' normalized title '#' release year
-                                # value: index into movie_rowlist array (0-based)
-
-movie_ostn_otn_y_dict = dict()  # dictionary of movies
-                                # key: normalized original series title '#' normalized original title '#' release year
+movie_ostn_ein_y_dict = dict()  # dictionary of movies
+                                # key: normalized original series title '#' normalized episode id '#' release year
                                 # value: index into movie_rowlist array (0-based)
 
 movie_tn_dict = dict()          # dictionary of movies
@@ -181,21 +249,22 @@ movie_otn_dict = dict()         # dictionary of movies
                                 # key: normalized original title
                                 # value: tuple with indexes into movie_rowlist array (0-based)
 
-movie_stn_etn_dict = dict()     # dictionary of movies
-                                # key: normalized series title '#' normalized episode title
+#movie_stn_dict = dict()         # dictionary of movies
+#                                # key: normalized series title
+#                                # value: tuple with indexes into movie_rowlist array (0-based)
+
+#movie_ostn_dict = dict()        # dictionary of movies
+#                                # key: normalized original series title
+#                                # value: tuple with indexes into movie_rowlist array (0-based)
+
+movie_stn_ein_dict = dict()     # dictionary of movies
+                                # key: normalized series title '#' normalized episode id
                                 # value: tuple with indexes into movie_rowlist array (0-based)
 
-movie_ostn_oetn_dict = dict()   # dictionary of movies
-                                # key: normalized original series title '#' normalized original episode title
+movie_ostn_ein_dict = dict()    # dictionary of movies
+                                # key: normalized original series title '#' normalized episode id
                                 # value: tuple with indexes into movie_rowlist array (0-based)
 
-movie_stn_tn_dict = dict()      # dictionary of movies
-                                # key: normalized series title '#' normalized title
-                                # value: tuple with indexes into movie_rowlist array (0-based)
-
-movie_ostn_otn_dict = dict()    # dictionary of movies
-                                # key: normalized original series title '#' normalized original title
-                                # value: tuple with indexes into movie_rowlist array (0-based)
 
 i = 0
 for movie_row in movie_rowlist:
@@ -206,8 +275,7 @@ for movie_row in movie_rowlist:
     series_title_normalized = utils.NormalizeTitle(movie_row["SeriesTitle"])
     original_series_title_normalized = utils.NormalizeTitle(movie_row["OriginalSeriesTitle"])
 
-    episode_title_normalized = utils.NormalizeTitle(movie_row["EpisodeTitle"])
-    original_episode_title_normalized = utils.NormalizeTitle(movie_row["OriginalEpisodeTitle"])
+    episode_id_normalized = utils.NormalizeTitle(movie_row["EpisodeId"])
 
     year = movie_row["ReleaseYear"]
 
@@ -217,82 +285,101 @@ for movie_row in movie_rowlist:
         if tn_y_key not in movie_tn_y_dict:
             movie_tn_y_dict[tn_y_key] = i
         else:
-            utils.ErrorMsg("More than one movie description with same normalized title "+repr(title_normalized)+" and year "+str(year), num_errors)
+            existing_movie_row = movie_rowlist[movie_tn_y_dict[tn_y_key]]
+            utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching title and year:\n"+\
+                           "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+                           "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
         if original_title_normalized != None:
             otn_y_key = original_title_normalized + "#" + str(year)
             if otn_y_key not in movie_otn_y_dict:
                 movie_otn_y_dict[otn_y_key] = i
             else:
-                utils.ErrorMsg("More than one movie description with same normalized original title "+repr(original_title_normalized)+" and year "+str(year), num_errors)
+                existing_movie_row = movie_rowlist[movie_otn_y_dict[otn_y_key]]
+                utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching original title and year:\n"+\
+                               "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+                               "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
-        if series_title_normalized != None and episode_title_normalized != None:
-            stn_etn_y_key = series_title_normalized + "#" + episode_title_normalized + "#" + str(year)
-            if stn_etn_y_key not in movie_stn_etn_y_dict:
-                movie_stn_etn_y_dict[stn_etn_y_key] = i
-            else:
-                utils.ErrorMsg("More than one movie description with same normalized series title "+repr(series_title_normalized)+", normalized episode title "+repr(episode_title_normalized)+" and year "+str(year), num_errors)
+        #if series_title_normalized != None:
+        #    stn_y_key = series_title_normalized + "#" + str(year)
+        #    if stn_y_key not in movie_stn_y_dict:
+        #        movie_stn_y_dict[stn_y_key] = i
+        #    else:
+        #        existing_movie_row = movie_rowlist[movie_stn_y_dict[stn_y_key]]
+        #        utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching series title and year:\n"+\
+        #                       "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+        #                       "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
-        if original_series_title_normalized != None and original_episode_title_normalized != None:
-            ostn_oetn_y_key = original_series_title_normalized + "#" + original_episode_title_normalized + "#" + str(year)
-            if ostn_oetn_y_key not in movie_ostn_oetn_y_dict:
-                movie_ostn_oetn_y_dict[ostn_oetn_y_key] = i
-            else:
-                utils.ErrorMsg("More than one movie description with same normalized original series title "+repr(original_series_title_normalized)+", normalized original episode title "+repr(original_episode_title_normalized)+" and year "+str(year), num_errors)
+        #if original_series_title_normalized != None:
+        #    ostn_y_key = original_series_title_normalized + "#" + str(year)
+        #    if ostn_y_key not in movie_ostn_y_dict:
+        #        movie_ostn_y_dict[ostn_y_key] = i
+        #    else:
+        #        existing_movie_row = movie_rowlist[movie_ostn_y_dict[ostn_y_key]]
+        #        utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching original series title and year:\n"+\
+        #                       "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+        #                       "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
-        if series_title_normalized != None and title_normalized != None:
-            stn_tn_y_key = series_title_normalized + "#" + title_normalized + "#" + str(year)
-            if stn_tn_y_key not in movie_stn_tn_y_dict:
-                movie_stn_tn_y_dict[stn_tn_y_key] = i
+        if series_title_normalized != None and episode_id_normalized != None:
+            stn_ein_y_key = series_title_normalized + "#" + episode_id_normalized + "#" + str(year)
+            if stn_ein_y_key not in movie_stn_ein_y_dict:
+                movie_stn_ein_y_dict[stn_ein_y_key] = i
             else:
-                utils.ErrorMsg("More than one movie description with same normalized series title "+repr(series_title_normalized)+", normalized title "+repr(title_normalized)+" and year "+str(year), num_errors)
+                existing_movie_row = movie_rowlist[movie_stn_ein_y_dict[stn_ein_y_key]]
+                utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching series title, episode id and year:\n"+\
+                               "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+                               "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
-        if original_series_title_normalized != None and original_title_normalized != None:
-            ostn_otn_y_key = original_series_title_normalized + "#" + original_title_normalized + "#" + str(year)
-            if ostn_otn_y_key not in movie_ostn_otn_y_dict:
-                movie_ostn_otn_y_dict[ostn_otn_y_key] = i
+        if original_series_title_normalized != None and episode_id_normalized != None:
+            ostn_ein_y_key = original_series_title_normalized + "#" + episode_id_normalized + "#" + str(year)
+            if ostn_ein_y_key not in movie_ostn_ein_y_dict:
+                movie_ostn_ein_y_dict[ostn_ein_y_key] = i
             else:
-                utils.ErrorMsg("More than one movie description with same normalized original series title "+repr(original_series_title_normalized)+", normalized original title "+repr(original_title_normalized)+" and year "+str(year), num_errors)
+                existing_movie_row = movie_rowlist[movie_ostn_ein_y_dict[ostn_ein_y_key]]
+                utils.ErrorMsg("Inconsistency in table Movie: Two movie descriptions have matching original series title, episode id and year:\n"+\
+                               "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"]+" ("+str(year)+")\n"+\
+                               "  idMovie "+str(existing_movie_row["idMovie"])+": "+existing_movie_row["Title"]+" ("+str(year)+")", num_errors)
 
     else:
-        utils.ErrorMsg("Movie database inconsistency: Movie with id "+str(movie_row["idMovie"])+" has no release year: '"+movie_row["Title"]+"'", num_errors)
+        utils.ErrorMsg("Inconsistency in table Movie: Movie description without release year:\n"+\
+                       "  idMovie "+str(movie_row["idMovie"])+": "+movie_row["Title"], num_errors)
 
     # We still need to build the dictionaries without year, in case we get movie files without year
 
     tn_key = title_normalized
     if tn_key not in movie_tn_dict:
-        movie_tn_dict[tn_key] = []
+        movie_tn_dict[tn_key] = list()
     movie_tn_dict[tn_key].append(i)
 
     if original_title_normalized != None:
         otn_key = original_title_normalized
         if otn_key not in movie_otn_dict:
-            movie_otn_dict[otn_key] = []
+            movie_otn_dict[otn_key] = list()
         movie_otn_dict[otn_key].append(i)
 
-    if series_title_normalized != None and episode_title_normalized != None:
-        stn_etn_key = series_title_normalized + "#" + episode_title_normalized
-        if stn_etn_key not in movie_stn_etn_dict:
-            movie_stn_etn_dict[stn_etn_key] = []
-        movie_stn_etn_dict[stn_etn_key].append(i)
+    #if series_title_normalized != None:
+    #    stn_key = series_title_normalized
+    #    if stn_key not in movie_stn_dict:
+    #        movie_stn_dict[stn_key] = list()
+    #    movie_stn_dict[stn_key].append(i)
 
-    if original_series_title_normalized != None and original_episode_title_normalized != None:
-        ostn_oetn_key = original_series_title_normalized + "#" + original_episode_title_normalized
-        if ostn_oetn_key not in movie_ostn_oetn_dict:
-            movie_ostn_oetn_dict[ostn_oetn_key] = []
-        movie_ostn_oetn_dict[ostn_oetn_key].append(i)
+    #if original_series_title_normalized != None:
+    #    ostn_key = original_series_title_normalized
+    #    if ostn_key not in movie_ostn_dict:
+    #        movie_ostn_dict[ostn_key] = list()
+    #    movie_ostn_dict[ostn_key].append(i)
 
-    if series_title_normalized != None and title_normalized != None:
-        stn_tn_key = series_title_normalized + "#" + title_normalized
-        if stn_tn_key not in movie_stn_tn_dict:
-            movie_stn_tn_dict[stn_tn_key] = []
-        movie_stn_tn_dict[stn_tn_key].append(i)
+    if series_title_normalized != None and episode_id_normalized != None:
+        stn_ein_key = series_title_normalized + "#" + episode_id_normalized
+        if stn_ein_key not in movie_stn_ein_dict:
+            movie_stn_ein_dict[stn_ein_key] = list()
+        movie_stn_ein_dict[stn_ein_key].append(i)
 
-    if original_series_title_normalized != None and original_title_normalized != None:
-        ostn_otn_key = original_series_title_normalized + "#" + original_title_normalized
-        if ostn_otn_key not in movie_ostn_otn_dict:
-            movie_ostn_otn_dict[ostn_otn_key] = []
-        movie_ostn_otn_dict[ostn_otn_key].append(i)
+    if original_series_title_normalized != None and episode_id_normalized != None:
+        ostn_ein_key = original_series_title_normalized + "#" + episode_id_normalized
+        if ostn_ein_key not in movie_ostn_ein_dict:
+            movie_ostn_ein_dict[ostn_ein_key] = list()
+        movie_ostn_ein_dict[ostn_ein_key].append(i)
 
     i += 1
 
@@ -301,15 +388,18 @@ for movie_row in movie_rowlist:
 
 for medium_row in medium_rowlist:
 
-    title_normalized = utils.NormalizeTitle(medium_row["Title"])
-    series_title_normalized = utils.NormalizeTitle(medium_row["SeriesTitle"])
-    episode_title_normalized = utils.NormalizeTitle(medium_row["EpisodeTitle"])
-
     if verbosematching_mode:
-        utils.Msg("Matching info: Trying to find matching movie description for movie file: "+repr(medium_row["FilePath"]))
+        utils.Msg("Searching movie description for movie file '"+os.path.basename(medium_row["FilePath"])+"'")
 
-    title = medium_row["Title"]
     year = medium_row["ReleaseYear"]
+    title = medium_row["Title"]
+    series_title = medium_row["SeriesTitle"]
+    episode_id = medium_row["EpisodeId"]
+
+    title_normalized = utils.NormalizeTitle(title)
+    series_title_normalized = utils.NormalizeTitle(series_title)
+    episode_id_normalized = utils.NormalizeTitle(episode_id)
+
 
     movie_row = None
 
@@ -317,483 +407,106 @@ for medium_row in medium_rowlist:
 
         movie_dn = title + " (" + str(year) + ")"
 
-        if series_title_normalized != None and episode_title_normalized != None:
-
-            # Movie file has series and episode titles -> use them first, then try title
-
-            stn_etn_y_key = series_title_normalized + "#" + episode_title_normalized + "#" + str(year)
-            tn_y_key = title_normalized + "#" + str(year)
-
-            if stn_etn_y_key in movie_stn_etn_y_dict:
-
-                # Series and episode titles of movie file match series and episode titles of movie description
-
-                movie_row = movie_rowlist[movie_stn_etn_y_dict[stn_etn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #1 with series/episode and with year: Series and episode titles of movie file match series and episode titles of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_etn_y_key in movie_ostn_oetn_y_dict:
-
-                # Series and episode titles of movie file match original series and episode titles of movie description
-
-                movie_row = movie_rowlist[movie_ostn_oetn_y_dict[stn_etn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #2 with series/episode and with year: Series and episode titles of movie file match original series and episode titles of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_etn_y_key in movie_stn_tn_y_dict:
-
-                # Series and episode title of movie file match series title and normal title (in place of episode title) of movie description
-
-                movie_row = movie_rowlist[movie_stn_tn_y_dict[stn_etn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #3 with series/episode and with year: Series and episode titles of movie file match series title and normal title (in place of episode title) of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_etn_y_key in movie_ostn_otn_y_dict:
-
-                # Series and episode titles of movie file match original series title and original normal title (in place of episode title) of movie description
-
-                movie_row = movie_rowlist[movie_ostn_otn_y_dict[stn_etn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #4 with series/episode and with year: Series and episode titles of movie file match original series title and original normal title (in place of episode title) of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif tn_y_key in movie_tn_y_dict:
-
-                # Title of movie file matches title of movie description
-
-                movie_row = movie_rowlist[movie_tn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #5 with series/episode and with year: Title of movie file matches title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif tn_y_key in movie_otn_y_dict:
-
-                # Title of movie file matches original title of movie description
-
-                movie_row = movie_rowlist[movie_otn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #6 with series/episode and with year: Title of movie file matches original title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with series/episode and with year")
-
-        elif series_title_normalized != None and episode_title_normalized == None:
-
-            # Movie file has series title but no episode title -> use series title as title, then try title
-
-            stn_tn_y_key = series_title_normalized + "#" + title_normalized + "#" + str(year)
-            stn_y_key = series_title_normalized + "#" + str(year)
-            tn_y_key = title_normalized + "#" + str(year)
-
-            if stn_tn_y_key in movie_stn_tn_y_dict:
-
-                # Series title and normal title of movie file match series title and normal title (in place of episode title) of movie description
-
-                movie_row = movie_rowlist[movie_stn_tn_y_dict[stn_tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #1 with series title, without episode and with year: Series title and normal title of movie file match series title and normal title (in place of episode title) of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_tn_y_key in movie_ostn_otn_y_dict:
-
-                # Series title and normal title of movie file match original series title and original title (in place of episode title) of movie description
-
-                movie_row = movie_rowlist[movie_ostn_otn_y_dict[stn_tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #2 with series title, without episode and with year: Series title and normal title of movie file match original series title and original title (in place of episode title) of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_y_key in movie_tn_y_dict:
-
-                # Series title of movie file matches title of movie description
-
-                movie_row = movie_rowlist[movie_tn_y_dict[stn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #3 with series title, without episode and with year: Series title of movie file matches title of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif stn_y_key in movie_otn_y_dict:
-
-                # Series title of movie file matches original title of movie description
-
-                movie_row = movie_rowlist[movie_otn_y_dict[stn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #4 with series title, without episode and with year: Series title of movie file matches original title of movie description : Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif tn_y_key in movie_tn_y_dict:
-
-                # Title of movie file matches title of movie description
-
-                movie_row = movie_rowlist[movie_tn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #5 with series title, without episode and with year: Title of movie file matches title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif tn_y_key in movie_otn_y_dict:
-
-                # Title of movie file matches original title of movie description
-
-                movie_row = movie_rowlist[movie_otn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #6 with series title, without episode and with year: Title of movie file matches original title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with series title, without episode and with year")
+        if utils.HasEpisodeDescription(series_title, episode_id):
+            # Movie file is expected to have an episode-based movie description
+            
+            stn_ein_y_key = series_title_normalized + "#" + episode_id_normalized + "#" + str(year)
+
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, stn_ein_y_key, movie_stn_ein_y_dict,
+                                             "file series title, episode id, year with "+\
+                                             "description series title, episode id, year")
+
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, stn_ein_y_key, movie_ostn_ein_y_dict,
+                                             "file series title, episode id, year with "+\
+                                             "description original series title, episode id, year")
 
         else:
+            # Movie file is not expected to have an episode-based movie description
 
-            # Movie file has no series and episode titles -> only try title
+            if series_title_normalized != None:
+                # Movie is a mini-series ("Teil", "part")
+                
+                stn_y_key = series_title_normalized + "#" + str(year)
 
+                if movie_row == None:
+                    movie_row = MatchDictAndLink(medium_row, stn_y_key, movie_tn_y_dict,
+                                                 "file series title, year with "+\
+                                                 "description title, year")
+
+                if movie_row == None:
+                    movie_row = MatchDictAndLink(medium_row, stn_y_key, movie_otn_y_dict,
+                                                 "file series title, year with "+\
+                                                 "description original title, year")
+
+            # We test file title against description title to catch cases where description title contains "Teil"
+            
             tn_y_key = title_normalized + "#" + str(year)
 
-            if tn_y_key in movie_tn_y_dict:
-
-                # Title of movie file matches title of movie description
-
-                movie_row = movie_rowlist[movie_tn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #1 with just title and with year: Title of movie file matches title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            elif tn_y_key in movie_otn_y_dict:
-
-                # Title of movie file matches original title of movie description
-
-                movie_row = movie_rowlist[movie_otn_y_dict[tn_y_key]]
-
-                if verbosematching_mode:
-                    utils.Msg("Matching info: Try #2 with just title and with year: Title of movie file matches original title of movie description: Year: "+str(year)+"; Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                if movie_row["idMovie"] != medium_row["idMovie"]:
-                    SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with just title and with year")
-    else:
-
-        # Movie file has no year. Try to match without year.
-
-        movie_dn = title
-
-        if series_title_normalized != None and episode_title_normalized != None:
-
-            # Movie file has series and episode titles -> use them first, then try title
-
-            stn_etn_key = series_title_normalized + "#" + episode_title_normalized
-            tn_key = title_normalized
-
-            if stn_etn_key in movie_stn_etn_dict:
-
-                # Series and episode titles of movie file match series and episode titles of movie description
-
-                i_list = movie_stn_etn_dict[stn_etn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #1 with series/episode and without year: Series and episode titles of movie file match series and episode titles of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by series and episode) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_etn_key in movie_ostn_oetn_dict:
-
-                # Series and episode titles of movie file match original series and episode titles of movie description
-
-                i_list = movie_ostn_oetn_dict[stn_etn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #2 with series/episode and without year: Series and episode titles of movie file match original series and episode titles of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original series and episode) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_etn_key in movie_stn_tn_dict:
-
-                # Series and episode titles of movie file match series title and normal title (in place of episode title) of movie description
-
-                i_list = movie_stn_tn_dict[stn_etn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #3 with series/episode and without year: Series and episode titles of movie file match series title and normal title (in place of episode title) of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by series and title as episode) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_etn_key in movie_ostn_otn_dict:
-
-                # Series and episode titles of movie file match original series title and original normal title (in place of episode title) of movie description
-
-                i_list = movie_ostn_otn_dict[stn_etn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #4 with series/episode and without year: Series and episode titles of movie file match original series title and original normal title (in place of episode title) of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original series and title as episode) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif tn_key in movie_tn_dict:
-
-                # Title of movie file matches title of movie description
-
-                i_list = movie_tn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #5 with series/episode and without year: Title of movie file matches title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif tn_key in movie_otn_dict:
-
-                # Title of movie file matches original title of movie description
-
-                i_list = movie_otn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #6 with series/episode and without year: Title of movie file matches original title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with series/episode and without year")
-
-        elif series_title_normalized != None and episode_title_normalized == None:
-
-            # Movie file has series title but no episode title -> use series title as title, then try title
-
-            stn_tn_key = series_title_normalized + "#" + title_normalized
-            stn_key = series_title_normalized
-            tn_key = title_normalized
-
-            if stn_tn_key in movie_stn_tn_dict:
-
-                # Series title and normal title of movie file match series title and normal title of movie description
-
-                i_list = movie_stn_tn_dict[stn_tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #1 with series title, without episode and without year: Series title and normal title of movie file match series title and normal title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by series and title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_tn_key in movie_ostn_otn_dict:
-
-                # Original series title and original title of movie file match original series title and original title of movie description
-
-                i_list = movie_ostn_otn_dict[stn_tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #2 with series title, without episode and without year: Original series title and original title of movie file match original series title and original title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original series and title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_key in movie_tn_dict:
-
-                # Series title of movie file matches title of movie description
-
-                i_list = movie_tn_dict[stn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #3 with series title, without episode and without year: Series title of movie file matches title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by series vs. title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif stn_key in movie_otn_dict:
-
-                # Series title of movie file matches title of movie description
-
-                i_list = movie_otn_dict[stn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #4 with series title, without episode and without year: Series title of movie file matches original title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original series vs. title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif tn_key in movie_tn_dict:
-
-                # Title of movie file matches title of movie description
-
-                i_list = movie_tn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #5 with series title, without episode and without year: Title of movie file matches title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif tn_key in movie_otn_dict:
-
-                # Title of movie file matches original title of movie description
-
-                i_list = movie_otn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #6 with series title, without episode and without year: Title of movie file matches original title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with series title, without episode and with year")
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, tn_y_key, movie_tn_y_dict,
+                                             "file title, year with "+\
+                                             "description title, year")
+
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, tn_y_key, movie_otn_y_dict,
+                                             "file title, year with "+\
+                                             "description original title, year")
+
+    else:  # Movie file has no year
+
+        if utils.HasEpisodeDescription(series_title, episode_id):
+            # Movie file is expected to have an episode-based movie description
+
+            stn_ein_key = series_title_normalized + "#" + episode_id_normalized
+
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, stn_ein_key, movie_stn_ein_dict,
+                                             "file series title, episode id with "+\
+                                             "description series title, episode id")
+
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, stn_ein_key, movie_ostn_ein_dict,
+                                             "file series title, episode id with "+\
+                                             "description original series title, episode id")
 
         else:
+            # Movie file is not expected to have an episode-based movie description
 
-            # Movie file has no series and episode titles -> only try title
+            if series_title_normalized != None:
+                # Movie file is a mini-series ("Teil", "part")
 
+                stn_key = series_title_normalized
+
+                if movie_row == None:
+                    movie_row = MatchDictAndLink(medium_row, stn_key, movie_tn_dict,
+                                                 "file series title with "+\
+                                                 "description title")
+
+                if movie_row == None:
+                    movie_row = MatchDictAndLink(medium_row, stn_key, movie_otn_dict,
+                                                 "file series title with "+\
+                                                 "description original title")
+
+            # We test file title against description title to catch cases where description title contains "Teil"
+            
             tn_key = title_normalized
 
-            if tn_key in movie_tn_dict:
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, tn_key, movie_tn_dict,
+                                             "file title with "+\
+                                             "description title")
 
-                # Title of movie file matches title of movie description
+            if movie_row == None:
+                movie_row = MatchDictAndLink(medium_row, tn_key, movie_otn_dict,
+                                             "file title with "+\
+                                             "description original title")
 
-                i_list = movie_tn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #1 with just title and without year: Title of movie file matches title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            elif tn_key in movie_otn_dict:
-
-                # Title of movie file matches original title of movie description
-
-                i_list = movie_otn_dict[tn_key]
-                if len(i_list) == 1:
-                    movie_row = movie_rowlist[i_list[0]]
-
-                    if verbosematching_mode:
-                        utils.Msg("Matching info: Try #2 with just title and without year: Title of movie file matches original title of movie description: Title: "+repr(movie_row["Title"])+"; Original Title: "+repr(movie_row["OriginalTitle"])+"; Episode Title: "+repr(movie_row["EpisodeTitle"])+"; Original Episode Title: "+repr(movie_row["OriginalEpisodeTitle"]))
-
-                    if movie_row["idMovie"] != medium_row["idMovie"]:
-                        SetIdMovieInMedium(movie_row["idMovie"], medium_row["idMedium"], movie_dn)
-                else:
-                    # more than one matching movie
-                    utils.ErrorMsg("Skipping movie file without release year that matches (by original title) more than one movie description: "+repr(medium_row["FilePath"]), num_errors)
-
-            else:
-                if verbosematching_mode:
-                    utils.Msg("Matching info: No match with just title and without year")
-
+    if movie_row == None:
+        if verbosematching_mode:
+            utils.Msg("No movie description found for movie file '"+os.path.basename(medium_row["FilePath"])+"'")
+        
 
 if num_errors > 0:
     utils.ErrorMsg("Finished with "+str(num_errors)+" errors.")

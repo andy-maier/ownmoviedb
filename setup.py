@@ -25,6 +25,7 @@ setup(
     url              = None,
     platforms        = ['any'],
     packages         = ['moviedb'],
+    package_data     = {'moviedb': ['README']},
     scripts          = ['moviedb_scan_files.bat','moviedb_scan_files.py',
                         'moviedb_import_movies.bat','moviedb_import_movies.py',
                         'moviedb_link_movies.bat','moviedb_link_movies.py',
