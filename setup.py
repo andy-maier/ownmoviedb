@@ -32,6 +32,7 @@ setup(
                         'moviedb_gen_mymdb_missing.bat','moviedb_gen_mymdb_missing.py',
                         'moviedb_gen_movielist.bat','moviedb_gen_movielist.py',
                         'moviedb_check.bat','moviedb_check.py',
+                        'moviedb_tvbrowser_moviecheck.bat','moviedb_tvbrowser_moviecheck.py',
                         'moviedb_dailyrun.bat'],
     classifiers      = [
         "Programming Language :: Python",

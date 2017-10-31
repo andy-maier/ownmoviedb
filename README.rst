@@ -21,6 +21,8 @@ Change History
 V1.2.3a 2012-11-07
 ~~~~~~~~~~~~~~~~~~
 
+* Added moviedb_tvbrowser_moviecheck.py.
+
 V1.2.2 2012-09-20
 ~~~~~~~~~~~~~~~~~
 
