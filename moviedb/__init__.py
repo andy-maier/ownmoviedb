@@ -1,9 +1,6 @@
-# Package init file
+# -*- coding: utf-8 -*-
+"""Common modules for moviedb project"""
 
-'''Utilities for movies database'''
+__updated__ = "2014-05-06"
 
-# All submodules of this package are imported; so clients need to import just this package.
-
-from version import *
-from utils import *
-from config import *
+#__all__ = ["config", "utils", "version"]

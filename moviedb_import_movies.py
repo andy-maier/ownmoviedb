@@ -70,9 +70,9 @@ def Usage ():
     print "  -h, --help  Display this help text."
     print ""
     print "Movie database:"
-    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
-    print "  MySQL user: "+config.mysql_user+" (no password)"
-    print "  MySQL database: "+config.mysql_db
+    print "  MySQL host: "+config.MYSQL_HOST+" (default port 3306)"
+    print "  MySQL user: "+config.MYSQL_USER+" (no password)"
+    print "  MySQL database: "+config.MYSQL_DB
     print ""
     print "Examples:"
     print "  "+my_name+u" -v -f MyMDb_\u00DCbersicht.xls -s Sheet0 -l mymdb"
@@ -1443,8 +1443,8 @@ utils.Msg( my_name+" Version "+version.__version__)
 
 
 # Connection to movie database
-movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
-                               db=config.mysql_db, use_unicode=True, charset='utf8')
+movies_conn = MySQLdb.connect( host=config.MYSQL_HOST, user=config.MYSQL_USER,
+                               db=config.MYSQL_DB, use_unicode=True, charset='utf8')
 
 
 # Read the spreadsheet

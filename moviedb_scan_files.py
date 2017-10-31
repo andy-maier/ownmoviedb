@@ -55,12 +55,12 @@ def Usage ():
     print "  -h, --help  Display this help text."
     print ""
     print "Movie database being updated:"
-    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
-    print "  MySQL user: "+config.mysql_user+" (no password)"
-    print "  MySQL database: "+config.mysql_db
+    print "  MySQL host: "+config.MYSQL_HOST+" (default port 3306)"
+    print "  MySQL user: "+config.MYSQL_USER+" (no password)"
+    print "  MySQL database: "+config.MYSQL_DB
     print ""
     print "Locations of movie files being scanned (including subdirectories):"
-    for file_source in config.file_sources:
+    for file_source in config.FILE_SOURCES:
         print "  "+file_source["res"]+file_source["dir"]
     print ""
 
@@ -634,7 +634,7 @@ def RemoveFile(moviefile_uncpath):
         res = moviefile_uncpath[0:_ppos]        # UNC resource name (e.g. \\192.168.0.12\share)
         path = moviefile_uncpath[_ppos:]        # local file path on the UNC resource, with leading backslash
     else:
-        utils.ErrorMsg("File path does not start with UNC resource name: "+ufile_w, num_errors)
+        utils.ErrorMsg("File path does not start with UNC resource name: "+moviefile_uncpath, num_errors)
         res = None
         path = None
 
@@ -826,13 +826,14 @@ utils.Msg("Scanning source locations for movie files...")
 
 sourcepath_list = list() # list of source files (in addition to dict, to maintain order)
 
-sourcepath_dict = dict() # dictionary of source files
-                         # key: UNC file path (with Windows separators, as unicode types)
-                         # value: object:
-                         #   "status": status value, see config.file_sources["status"] for description
-                         #   "folder_path": display folder path, for FolderPath column.
+sourcepath_dict = dict()
+# dictionary of source files
+# key: UNC file path (with Windows separators, as unicode types)
+# value: object:
+#   "status": status value, see config.FILE_SOURCES["status"] for description
+#   "folder_path": display folder path, for FolderPath column.
 
-for file_source in config.file_sources:
+for file_source in config.FILE_SOURCES:
 
     source_res_w = file_source["res"]
     if type(source_res_w) == str:
@@ -874,8 +875,8 @@ utils.Msg("Found "+str(len(sourcepath_list))+" movie files in source locations")
 
 
 # Connection to movie database
-movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
-                               db=config.mysql_db, use_unicode=True, charset='utf8')
+movies_conn = MySQLdb.connect( host=config.MYSQL_HOST, user=config.MYSQL_USER,
+                               db=config.MYSQL_DB, use_unicode=True, charset='utf8')
 # Todo: exception handling, e.g. _mysql_exceptions.OperationalError
 
 # Build idvideoquality_dict dictionary from FixedQuality table in movie database
@@ -959,19 +960,22 @@ idcabinet_dict = dict() # dictionary of SMB file cabinets in movie database
                         # value: cabinet id
 for cabinet_row in cabinet_rows:
     res = "\\\\"+cabinet_row["SMBServerHost"]+"\\"+cabinet_row["SMBServerShare"]
-    id = cabinet_row["idCabinet"]
-    cabinet_dict[id] = res
-    idcabinet_dict[res] = id
+    cabinet_id = cabinet_row["idCabinet"]
+    cabinet_dict[cabinet_id] = res
+    idcabinet_dict[res] = cabinet_id
 
 
 # Get all movie files known in movie database, and build mediumpath_dict
 medium_cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
 medium_cursor.execute("SELECT FilePath,TSUpdated,TSVerified,idCabinet FROM Medium WHERE idMediumType = 'FILE'")
-mediumpath_dict = dict() # dictionary of medium files in movie database
-                         # key: UNC file path (with Windows separators, as unicode types)
-                         # value: object:
-                         #   "updated": date where medium row was last updated
-                         #   "verified": date where file existence was last verified
+
+mediumpath_dict = dict()
+# dictionary of medium files in movie database
+# key: UNC file path (with Windows separators, as unicode types)
+# value: object:
+#   "updated": date where medium row was last updated
+#   "verified": date where file existence was last verified
+
 while True:
     medium_row = medium_cursor.fetchone()
     if medium_row == None:

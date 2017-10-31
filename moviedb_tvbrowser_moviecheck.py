@@ -21,7 +21,7 @@
 
 import sys, os.path
 import MySQLdb
-from moviedb import config, utils, version
+from moviedb import config, utils
 
 
 my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])

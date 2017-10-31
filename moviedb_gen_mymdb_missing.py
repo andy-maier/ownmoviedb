@@ -33,14 +33,14 @@ series_as_one_entry = False     # Boolean controlling that the report shortens s
 
 filepath_begin_list = (         # file paths (or begins thereof) that will be listed
   "\\admauto",
-  "\\Movies\\share\\Spielfilme\\",
-  "\\Movies\\share\\Neu\\",
-  "\\Movies\\share\\Kinderfilme\\",
-  "\\Movies\\share\\Maerchen\\",
-  "\\Movies\\share\\Krimiserien\\Wallander\\",
-  "\\Movies\\share\\Krimiserien\\Barbarotti\\",
-  "\\Movies\\share\\Krimiserien\\Brenner\\",
-  "\\Movies\\share\\Krimiserien\\James Bond 007\\",
+  "\\Movies\\library\\Spielfilme\\",
+  "\\Movies\\library\\Neu\\",
+  "\\Movies\\library\\Kinderfilme\\",
+  "\\Movies\\library\\Maerchen\\",
+  "\\Movies\\library\\Krimiserien\\Wallander\\",
+  "\\Movies\\library\\Krimiserien\\Barbarotti\\",
+  "\\Movies\\library\\Krimiserien\\Brenner\\",
+  "\\Movies\\library\\Krimiserien\\James Bond 007\\",
 )
 
 #------------------------------------------------------------------------------
@@ -64,9 +64,9 @@ def Usage ():
     print "  -h, --help  Display this help text."
     print ""
     print "Movie database:"
-    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
-    print "  MySQL user: "+config.mysql_user+" (no password)"
-    print "  MySQL database: "+config.mysql_db
+    print "  MySQL host: "+config.MYSQL_HOST+" (default port 3306)"
+    print "  MySQL user: "+config.MYSQL_USER+" (no password)"
+    print "  MySQL database: "+config.MYSQL_DB
     print ""
     print "Filepaths on media server that are searched:"
     for filepath_begin in filepath_begin_list:
@@ -123,8 +123,8 @@ if len(pos_argv) < 0:
 utils.Msg( my_name+" Version "+version.__version__)
 
 # Connection to movie database
-movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
-                               db=config.mysql_db, use_unicode=True, charset='utf8')
+movies_conn = MySQLdb.connect( host=config.MYSQL_HOST, user=config.MYSQL_USER,
+                               db=config.MYSQL_DB, use_unicode=True, charset='utf8')
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
 _cursor.execute("SELECT * FROM Medium WHERE idMovie IS NULL AND idStatus IN ('WORK','SHARED','DISABLED')")

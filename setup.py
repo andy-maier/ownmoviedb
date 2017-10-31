@@ -1,14 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+"""Utilities for movies database"""
+
 #
 # To make this package, run from within this directory (in Windows):
 #   if exist MANIFEST del MANIFEST
 #   python setup.py build sdist -d ../dist
 
-'''Utilities for movies database'''
+
 
 from distutils.core import setup
 import os.path, sys
+
 
 # Execute moviedb/version.py using its absolute path, so that setup.py can be run with
 # any current working directory.
@@ -17,7 +20,7 @@ execfile(version_py) # defines __version__
 
 setup(
     name             = 'moviedb',
-    version          = __version__,
+    version          = __version__, # pylint: disable=E0602
     description      = __doc__,
     long_description = __doc__,
     author           = 'Andreas Maier',

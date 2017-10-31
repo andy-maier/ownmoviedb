@@ -18,6 +18,13 @@ This package is a Python source distribution that is designed for installation a
 Change History
 --------------
 
+V1.4.3 2016-11-13
+~~~~~~~~~~~~~~~~~
+
+* Changed directory structure on fileserver (share to library).
+* Added PyLint checking and addressed PyLint issues.
+* Removed file headers with change history from the single files.
+
 V1.4.1 2014-02-24
 ~~~~~~~~~~~~~~~~~
 

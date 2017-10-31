@@ -1,36 +1,22 @@
-#!/usr/local/bin/python2.7
 # -*- coding: utf-8 -*-
-# coding: utf-8
-#
-# Module with utility functions for movies project.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.0.0 2012-07-22
-#     Added support for MediaInfo 0.7.58, by changing --output=xml to --output=XML
-#     Added U+00AA and U+0152 to xmlrep_trans translation list to fix issue with invalid XML produced by MediaInfo.
-#   V1.2.1 2012-09-03
-#     Improved algorithm to detect series.
-#     No longer removing bracket text from titles.
-#   V1.4.0 2013-09-09
-#     Added support for .avi file extension (just .avi, not .div.avi or .mpg.avi) in ParseMovieFilename().
-#     Added support for more than one language in ParseMovieFilename().
-#     Added 'AE' and middle dot characters to normalization.
-#   V1.4.1 2014-02-24
-#     Fixed invalid index bug in ParseMovieFilename().
+"""
+Utility functions for moviedb project.
+"""
 
-import re, string, sys, subprocess, os, os.path, fnmatch, time
+__updated__ = "2014-05-06"
 
 
-#------------------------------------------------------------------------------
-def ErrorMsg(msg, num_errors=None):
-    """Prints an error message to stdout and increases number of errors by 1.
+import re
+import sys
+import subprocess
+import os.path
+import fnmatch
+import time
+
+
+def ErrorMsg (msg,num_errors=None):
+    """
+    Prints an error message to stdout and increases the number of errors by 1.
 
     Parameters:
         msg:        Message string (str or unicode type).
@@ -50,9 +36,9 @@ def ErrorMsg(msg, num_errors=None):
     return
 
 
-#------------------------------------------------------------------------------
 def WarningMsg(msg):
-    """Prints a warning message to stdout.
+    """
+    Prints a warning message to stdout.
 
     Parameters:
         msg:        Message string (str or unicode type).
@@ -225,9 +211,9 @@ def StripSquareBrackets(movie_title):
     if movie_title_stripped != None:
         matched = True
         while matched:
-            m = re.match("(.*)(\[.*\])(.*)",movie_title_stripped)
+            m = re.match(r"(.*)(\[.*\])(.*)",movie_title_stripped)
             if m != None:
-                _tp1, _sb, _tp2 = m.groups()
+                _tp1, unused_sb, _tp2 = m.groups()
                 movie_title_stripped = (_tp1 + _tp2).replace(" , ",", ").replace("  "," ").strip(" ")
             else:
                 matched = False
@@ -236,10 +222,12 @@ def StripSquareBrackets(movie_title):
 
 
 #------------------------------------------------------------------------------
-def SqlLiteral(_str):
-    # _str is a (unicode) string for use in a SQL literal
+def SqlLiteral(str_):
+    """
+    str_:   a (unicode) string for use in a SQL literal
+    """
 
-    nstr = _str
+    nstr = str_
     nstr = nstr.replace("'","\\'")
 
     return nstr
@@ -274,8 +262,8 @@ def RunCmd(cmd, timeout=None):
         Exception (str), if the timeout was reached.
     """
 
-    stdout_str = None   # stdout string of command
-    stderr_str = None   # stderr string of command
+    #stdout_str = None   # stdout string of command
+    #stderr_str = None   # stderr string of command
     exit_code = None    # exit code of command
 
     # Make sure the command is passed as type str. If we pass it as unicode, then
@@ -332,7 +320,7 @@ def RecursiveGlob(directory, fnpattern):
     """
 
     filenames = []
-    for root, dirs, files in os.walk(directory):
+    for root, unused_dirs, files in os.walk(directory):
         for basename in files:
             if fnmatch.fnmatch(basename, fnpattern):
                 filenames.append(os.path.join(root, basename))
@@ -361,7 +349,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
             [] surround optional parts
             () surround choices, separated with |
         Format:
-            {complextitle}([3D ][{lang} ]{q} {dar}[ {techcomm}])[.{dup}][.{partial}][.uncut].{ext}
+            {complextitle}([3D ][{lang} ]{q} {dar}[ {techcomm}])[.{dup}][.{partial}][.uncut][.manualsave].{ext}
         Where:
             {complextitle}  Complex title in the file name. May contain "[text]", "(text)", "(year)",
                             episode numbers, series and episode titles.
@@ -393,6 +381,8 @@ def ParseMovieFilename(filename,tolerate_noext=False):
                             For example: "missing-end" indicates that the file contains everything but the end.
            uncut            Presence indicates that the movie is not yet cut (i.e. contains advertisements, or
                             extra content at begin or end)
+           manualsave       Presence indicates that the movie needs to be converted using Avidemux interactive
+                            "Save", instead of running the command line version in batch mode.
            {ext}            File extension, indicates the container format.
                             Must be one of: "mp4", "divx.avi", "mpg.avi", "api", "mkv"
                             A missing file extension is tolerated if tolerate_noext is True.
@@ -417,6 +407,8 @@ def ParseMovieFilename(filename,tolerate_noext=False):
             "partial"       Keyword indicating that the movie file contains only a part of the movie,
                             as a string (e.g. "missing-end")
             "uncut"         Boolean indicating whether the movie is not yet cut.
+            "manualsave"    Boolean indicating whether the movie needs to be manually saved in Avidemux when
+                            converting it, instead of using Avidemux command line batch mode.
             "container"     Indicator for container format, as str type, using the following list:
                                 "MP4", "DIVX AVI", "MPG AVI"
                             None, if tolerate_noext is True and the file extension was missing.
@@ -528,6 +520,13 @@ def ParseMovieFilename(filename,tolerate_noext=False):
     if len(part2_words) > 0:
         if part2_words[-1] == "uncut":
             rv["uncut"] = True
+            part2_words = part2_words[0:-1]
+
+    # Determine manualsave indicator
+    rv["manualsave"] = False
+    if len(part2_words) > 0:
+        if part2_words[-1] == "manualsave":
+            rv["manualsave"] = True
             part2_words = part2_words[0:-1]
 
     # Determine duplication number (left-most of remaining words)
@@ -715,184 +714,184 @@ def test_ParseComplexTitle():
     Test the ParseComplexTitle() function.
     '''
     print "Testing function ParseComplexTitle() ..."
-    num_failed = 0
+    _num_failed = 0
 
-    num_failed += test_one_ParseComplexTitle( "A",
+    _num_failed += test_one_ParseComplexTitle( "A",
                                    { "title": "A",
                                       "year": None,
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (1999)",
+    _num_failed += test_one_ParseComplexTitle( "A (1999)",
                                    { "title": "A",
                                       "year": "1999",
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (1999) (2000)",
+    _num_failed += test_one_ParseComplexTitle( "A (1999) (2000)",
                                    { "title": "A (1999)",
                                       "year": "2000",
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (1999) B",
+    _num_failed += test_one_ParseComplexTitle( "A (1999) B",
                                    { "title": "A B",
                                       "year": "1999",
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (1999) 2000",
+    _num_failed += test_one_ParseComplexTitle( "A (1999) 2000",
                                    { "title": "A 2000",
                                       "year": "1999",
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (199)",
+    _num_failed += test_one_ParseComplexTitle( "A (199)",
                                    { "title": "A (199)",
                                       "year": None,
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (199x)",
+    _num_failed += test_one_ParseComplexTitle( "A (199x)",
                                    { "title": "A (199x)",
                                       "year": None,
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A (19990)",
+    _num_failed += test_one_ParseComplexTitle( "A (19990)",
                                    { "title": "A (19990)",
                                       "year": None,
                               "series_title": None,
                                 "episode_id": None,
                              "episode_title": None })
 
-    num_failed += test_one_ParseComplexTitle( "A - 1 - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 1 - B",
                                    { "title": "A - 1 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "1",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A - 01 - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 01 - B",
                                    { "title": "A - 01 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "01",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A - 001 - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 001 - B",
                                    { "title": "A - 001 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "001",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A - 123 - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 123 - B",
                                    { "title": "A - 123 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "123",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A - 123a - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 123a - B",
                                    { "title": "A - 123a - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "123a",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A - 12.13 - B",
+    _num_failed += test_one_ParseComplexTitle( "A - 12.13 - B",
                                    { "title": "A - 12.13 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "12.13",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Folge 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Folge 12 - B",
                                    { "title": "A, Folge 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Folge 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "12, Folge 13 - 14",
+    _num_failed += test_one_ParseComplexTitle( "12, Folge 13 - 14",
                                    { "title": "12, Folge 13 - 14",
                                       "year": None,
                               "series_title": "12",
                                 "episode_id": "Folge 13",
                              "episode_title": "14" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Doppelfolge 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Doppelfolge 12 - B",
                                    { "title": "A, Doppelfolge 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Doppelfolge 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Teil 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Teil 12 - B",
                                    { "title": "A, Teil 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Teil 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Part 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Part 12 - B",
                                    { "title": "A, Part 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Part 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, part 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, part 12 - B",
                                    { "title": "A, part 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "part 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Buch 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Buch 12 - B",
                                    { "title": "A, Buch 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Buch 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Book 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Book 12 - B",
                                    { "title": "A, Book 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Book 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, book 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, book 12 - B",
                                    { "title": "A, book 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "book 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Episode 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Episode 12 - B",
                                    { "title": "A, Episode 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Episode 12",
                              "episode_title": "B" })
 
-    num_failed += test_one_ParseComplexTitle( "A, Film 12 - B",
+    _num_failed += test_one_ParseComplexTitle( "A, Film 12 - B",
                                    { "title": "A, Film 12 - B",
                                       "year": None,
                               "series_title": "A",
                                 "episode_id": "Film 12",
                              "episode_title": "B" })
 
-    return num_failed
+    return _num_failed
 
 
 def test_one_ParseComplexTitle(complex_title, exp_rv):

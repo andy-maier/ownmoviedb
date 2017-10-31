@@ -33,7 +33,7 @@ outcsv_cp = "utf-8"               # code page used for output CSV file
 
 filepath_begin_list = (         # file paths (or begins thereof) with movie files that will be listed
   "\\admauto",
-  "\\Movies\\share",
+  "\\Movies\\library",
 )
 
 
@@ -57,9 +57,9 @@ def Usage ():
     print "  -h, --help  Display this help text."
     print ""
     print "Movie database:"
-    print "  MySQL host: "+config.mysql_host+" (default port 3306)"
-    print "  MySQL user: "+config.mysql_user+" (no password)"
-    print "  MySQL database: "+config.mysql_db
+    print "  MySQL host: "+config.MYSQL_HOST+" (default port 3306)"
+    print "  MySQL user: "+config.MYSQL_USER+" (no password)"
+    print "  MySQL database: "+config.MYSQL_DB
     print ""
     print "Generated CSV file: "+outcsv_file
     print ""
@@ -161,8 +161,8 @@ utils.Msg( my_name+" Version "+version.__version__)
 
 utils.Msg("Reading movie files from movies database ...")
 
-movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
-                               db=config.mysql_db, use_unicode=True, charset='utf8')
+movies_conn = MySQLdb.connect( host=config.MYSQL_HOST, user=config.MYSQL_USER,
+                               db=config.MYSQL_DB, use_unicode=True, charset='utf8')
 
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)
 
