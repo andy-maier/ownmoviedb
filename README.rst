@@ -37,6 +37,8 @@ V1.5.0 not yet released
 * Added a Makefile and removed the make.bat/install.bat scripts.
 * Changed from using distutils to using setuptools&pbr for the Python package.
 * Added a .gitignore file.
+* Obtain package version from pbr.
+* Fixed all flake8 errors in moviedb package (not yet in the scripts).
 
 V1.4.3 2016-11-13
 ~~~~~~~~~~~~~~~~~
