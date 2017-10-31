@@ -74,8 +74,7 @@ endif
 package_name := ownmoviedb
 
 # Package version (full version, including any pre-release suffixes, e.g. "0.1.0-alpha1")
-# package_version := $(shell $(PYTHON_CMD) -c "import sys, $(package_name); sys.stdout.write($(package_name).__version__)")
-package_version := $(shell $(PYTHON_CMD) -c "from pbr.version import VersionInfo; vi=VersionInfo('zhmcclient'); print(vi.version_string_with_vcs())")
+package_version := $(shell $(PYTHON_CMD) -c "from pbr.version import VersionInfo; vi=VersionInfo('$(package_name)'); print(vi.version_string_with_vcs())")
 
 # Python major version
 python_major_version := $(shell $(PYTHON_CMD) -c "import sys; sys.stdout.write('%s'%sys.version_info[0])")
@@ -187,6 +186,7 @@ all: install develop check pylint test build builddoc
 
 .PHONY: _pip
 _pip:
+	$(PYTHON_CMD) remove_duplicate_setuptools.py
 	@echo 'Installing/upgrading pip, setuptools, wheel and pbr with PACKAGE_LEVEL=$(PACKAGE_LEVEL)'
 	$(PIP_CMD) install $(pip_level_opts) pip setuptools wheel pbr
 
@@ -331,6 +331,6 @@ flake8.log: Makefile $(flake8_rc_file) $(check_py_files)
 
 $(test_log_file): Makefile $(package__py_files) $(test_py_files) .coveragerc
 	rm -fv $@
-	bash -c 'set -o pipefail; PYTHONWARNINGS=default py.test -s $(test_dir) --cov $(package_name) --cov zhmcclient_mock --cov-config .coveragerc --cov-report=html $(pytest_opts) 2>&1 |tee $@.tmp'
+	bash -c 'set -o pipefail; PYTHONWARNINGS=default py.test -s $(test_dir) --cov $(package_name) --cov-config .coveragerc --cov-report=html $(pytest_opts) 2>&1 |tee $@.tmp'
 	mv -f $@.tmp $@
 	@echo 'Done: Created test log file: $@'
