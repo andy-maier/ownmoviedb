@@ -226,8 +226,10 @@ build: $(dist_files)
 	@echo '$@ done.'
 
 .PHONY: builddoc
-builddoc: html
-	@echo '$@ done.'
+#builddoc: html
+#	@echo '$@ done.'
+builddoc:
+	@echo 'Warning: $@ disabled for now.'
 
 .PHONY: upload
 upload: uninstall $(dist_files)
