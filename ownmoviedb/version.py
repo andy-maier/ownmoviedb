@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# coding: utf-8
 # -----------------------------------------------------------------------------
 # Copyright 2012-2017 Andreas Maier. All Rights Reserved.
 #
@@ -16,11 +17,20 @@
 # -----------------------------------------------------------------------------
 
 """
-Python setup script for ownmoviedb project.
+Module defining package version for ownmoviedb project.
 """
 
-import setuptools
+import sys
+import pbr.version
 
-setuptools.setup(
-    setup_requires=['pbr>=1.10'],
-    pbr=True)
+__all__ = ['__version__']
+
+#: The full version of this package including any development levels, as a
+#: string.
+#:
+#: Possible formats for this version string are:
+#:
+#: * "M.N.P.devD": Development level D of a not yet released assumed M.N.P
+#:   version
+#: * "M.N.P": A released M.N.P version
+__version__ = pbr.version.VersionInfo('ownmoviedb').release_string()

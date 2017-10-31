@@ -1,5 +1,20 @@
-# ------------------------------------------------------------------------------
-# Makefile for moviedb project
+# -----------------------------------------------------------------------------
+# Copyright 2012-2017 Andreas Maier. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# -----------------------------------------------------------------------------
+
+# Makefile for ownmoviedb project
 #
 # Basic prerequisites for running this Makefile, to be provided manually:
 #   One of these OS platforms:
@@ -24,7 +39,6 @@
 #   PACKAGE_LEVEL: minimum/latest - Level of Python dependent packages to use
 # Additional prerequisites for running this Makefile are installed by running:
 #   make develop
-# ------------------------------------------------------------------------------
 
 # Python / Pip commands
 ifndef PYTHON_CMD
@@ -57,7 +71,7 @@ else
 endif
 
 # Name of this Python package (top-level Python namespace + Pypi package name)
-package_name := moviedb
+package_name := ownmoviedb
 
 # Package version (full version, including any pre-release suffixes, e.g. "0.1.0-alpha1")
 # package_version := $(shell $(PYTHON_CMD) -c "import sys, $(package_name); sys.stdout.write($(package_name).__version__)")

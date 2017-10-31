@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# coding: utf-8
 # -----------------------------------------------------------------------------
 # Copyright 2012-2017 Andreas Maier. All Rights Reserved.
 #
@@ -16,11 +17,5 @@
 # -----------------------------------------------------------------------------
 
 """
-Python setup script for ownmoviedb project.
+Common modules for ownmoviedb project.
 """
-
-import setuptools
-
-setuptools.setup(
-    setup_requires=['pbr>=1.10'],
-    pbr=True)

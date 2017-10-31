@@ -1,5 +1,21 @@
-moviedb - Python utilities for creating and updating a movies database
-======================================================================
+.. #---------------------------------------------------------------------------
+.. # Copyright 2012-2017 Andreas Maier. All Rights Reserved.
+.. #
+.. # Licensed under the Apache License, Version 2.0 (the "License");
+.. # you may not use this file except in compliance with the License.
+.. # You may obtain a copy of the License at
+.. #
+.. #    http://www.apache.org/licenses/LICENSE-2.0
+.. #
+.. # Unless required by applicable law or agreed to in writing, software
+.. # distributed under the License is distributed on an "AS IS" BASIS,
+.. # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.. # See the License for the specific language governing permissions and
+.. # limitations under the License.
+.. # --------------------------------------------------------------------------
+
+ownmoviedb - Python utilities for creating and updating my own movie database
+=============================================================================
 
 Installation
 ------------
@@ -14,23 +30,23 @@ Installation
 
 2. Clone the Git repo of this project:
 
-       git clone {repo-url} moviedb
-       cd moviedb
+       git clone {repo-url} ownmoviedb
+       cd ownmoviedb
 
 3. Configure the connection to your MySql server, location of your media
    files, and other parameters::
 
-       vi moviedb/config.py
+       vi ownmoviedb/config.py
 
 4. Install this Python package and its prerequisite Python packages from its
    local Git clone (including the modified config file)::
 
        make install
 
-5. Create the 'movies' database in your MySql server, by running
+5. Create the 'ownmoviedb' database in your MySql server, by running
    this SQL file in phpAdmin or in a similar admin tool::
 
-       create_movies_database.sql
+       create_ownmoviedb.sql
 
 Change History
 --------------
@@ -38,6 +54,7 @@ Change History
 V1.5.0 not yet released
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+* Renamed package from moviedb to ownmoviedb.
 * Added a Makefile and removed the make.bat/install.bat scripts.
 * Changed from using distutils to using setuptools&pbr for the Python package.
 * Added a .gitignore file.
