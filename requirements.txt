@@ -1,0 +1,14 @@
+# Pip runtime requirements file for the moviedb project.
+#
+# The order of packages is significant, because pip processes them in the order
+# of appearance.
+#
+# Make sure that the package versions in minimum-constraints.txt are also
+# the minimum versions required in requirements.txt and dev-requirements.txt.
+
+
+# Direct dependencies (except pip, setuptools, wheel):
+
+pbr>=1.10.0
+MySQL-python>=1.2.5
+xlrd>=1.1.0

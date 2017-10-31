@@ -4,15 +4,28 @@ moviedb - Python utilities for creating and updating a movies database
 Installation
 ------------
 
-This package is a Python source distribution that is designed for installation as a Python site package:
+1. Install prerequisite OS-level packages:
 
-1. Unpack the source distribution archive moviedb-N.M.U.zip into some directory.
+   * On Ubuntu::
 
-2. Run the following command from the moviedb-N.M.U directory within the unpack directory:
+         sudo apt-get install libmysqlclient-dev
 
-     python setup.py build install
+   * Similarly on other Linux distros.
 
-3. The unpack directory can then be deleted.
+2. Clone the Git repo of this project:
+
+       git clone {repo-url} moviedb
+       cd moviedb
+
+3. Configure the connection to your MySql installation, location of your media
+   files, and other parameters::
+
+       vi moviedb/config.py
+
+4. Install this Python package and its prerequisite Python packages from its
+   local Git clone (including the modified config file)::
+
+       make install
 
 
 Change History
@@ -21,6 +34,9 @@ Change History
 V1.5.0 not yet released
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+* Added a Makefile and removed the make.bat/install.bat scripts.
+* Changed from using distutils to using setuptools&pbr for the Python package.
+* Added a .gitignore file.
 
 V1.4.3 2016-11-13
 ~~~~~~~~~~~~~~~~~
@@ -148,7 +164,7 @@ Todo List
       moviedb_scan_files Version 1.4.0
 
       File: "\\192.168.0.12\share\admauto\Andi-PC\Die Swingmaedchen, Teil 1 (HD 16x9).uncut.mpg.avi" ...
-      Title in file: " Die Swingm„dchen (1/2)"
+      Title in file: " Die Swingm.dchen (1/2)"
 
       Traceback (most recent call last):
       File "C:\Python27\Scripts\moviedb_scan_files.py", line 1029, in <module>
@@ -160,6 +176,8 @@ Todo List
       File "C:\Python27\lib\site-packages\moviedb\utils.py", line 475, in ParseMovieFilename
       m = re.match(r"[0-9]+)x([0-9]+)$",qblock_words[0])
       IndexError: list index out of range
+
+  Note: The '.' in " Die Swingm.dchen (1/2)" is the byte 0x84.
 
 * Fix "just-end" error in admauto.
 
