@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+# coding: utf-8
 """
 Links movie descriptions to media files in the movie database.
 Usage see below in Usage(), or invoke with '-h' or '--help'.

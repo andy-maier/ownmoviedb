@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# coding: utf-8
 """Configuration parameters"""
 
 __updated__ = "2016-10-18"

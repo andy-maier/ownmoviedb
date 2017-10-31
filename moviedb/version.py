@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+# coding: utf-8
 '''
 Module defining package version.
 
