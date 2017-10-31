@@ -22,6 +22,8 @@ V1.2.3a 2012-11-07
 ~~~~~~~~~~~~~~~~~~
 
 * Added moviedb_tvbrowser_moviecheck.py.
+* Added support for FolderPath column. (was originally in 1.2.0)
+* Improved error message for unknown genre.
 
 V1.2.2 2012-09-20
 ~~~~~~~~~~~~~~~~~
@@ -38,6 +40,10 @@ V1.2.1 2012-09-04
   from file names and titles from title tags.
 * New module structure.
 * Consistent version across the package.
+
+V1.2.0
+~~~~~~
+
 
 V1.1.1 2012-08-12
 ~~~~~~~~~~~~~~~~~

@@ -20,7 +20,7 @@
 #     Moved file_sources to movies_config.
 #   V1.2.0 2012-09-02
 #     Renamed package to moviedb and restructured modules.
-
+#     Added support for FolderPath column.
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
@@ -76,7 +76,7 @@ def GetMovieInfo(moviefile_uncpath):
     """
 
     global num_errors, verbose_mode
-    
+
     basefile = os.path.basename(moviefile_uncpath)
 
     # Split file path into UNC resource name and local file path
@@ -125,6 +125,7 @@ def GetMovieInfo(moviefile_uncpath):
     movie["fn_partial"] = parsed_filename["partial"]
     movie["file_res"] = res
     movie["file_path"] = path
+    movie["folder_path"] = sourcepath_dict[moviefile_uncpath]["folder_path"]
     movie["idCabinet"] = GetIdCabinet(res, moviefile_uncpath)
 
 
@@ -340,22 +341,22 @@ def GetMovieInfo(moviefile_uncpath):
 
                             _elem = video_elem.find("Display_aspect_ratio")
                             if _elem != None:
-                                _v = _elem.text   # e.g. "16:9" or "1.25"
+                                _v = _elem.text   # e.g. "16:9" or "1.25" or "16.0:9.0"
                                 _colon = _v.find(":")
                                 if _colon >= 0:
                                     # we assume there is a number before and after the colon
-                                    _v = float(_v[0:_colon]) / float(_v[_colon+1:len(_v)])
+                                    _v = float(_v[0:_colon]) / float(_v[_colon+1:])
                                 else:
                                     _v = float(_v)
                                 movie["video_dar"] = str(_v)
 
                             _elem = video_elem.find("Original_display_aspect_ratio")
                             if _elem != None:
-                                _v = _elem.text   # e.g. "16:9" or "1.25"
+                                _v = _elem.text   # e.g. "16:9" or "1.25" or "16.0:9.0"
                                 _colon = _v.find(":")
                                 if _colon >= 0:
                                     # we assume there is a number before and after the colon
-                                    _v = float(_v[0:_colon]) / float(_v[_colon+1:len(_v)])
+                                    _v = float(_v[0:_colon]) / float(_v[_colon+1:])
                                 else:
                                     _v = float(_v)
                                 movie["video_dar_org"] = str(_v)
@@ -477,7 +478,8 @@ def UpdateFile(moviefile_uncpath):
     cv += "ReleaseYear = %(year)s, "
     cv += "SeriesTitle = %(series_title)s, "
     cv += "EpisodeTitle = %(episode_title)s, "
-    cv += "EpisodeId = %(episode_id)s"
+    cv += "EpisodeId = %(episode_id)s, "
+    cv += "FolderPath = %(folder_path)s"
 
     # movie["fn_threed"]+", "
     # movie["fn_partial"]+", "
@@ -571,6 +573,8 @@ def AddFile(moviefile_uncpath):
     v += "%(audio_samplingrate_hz)s, "
     c += "FilePath, "
     v += "%(file_path)s, "
+    c += "FolderPath, "
+    v += "%(folder_path)s, "
     now = str(datetime.datetime.now())[0:19]
     c += "TSUpdated, "
     v += "'"+now+"', "
@@ -817,16 +821,23 @@ sourcepath_dict = dict() # dictionary of source files
                          # key: UNC file path (with Windows separators, as unicode types)
                          # value: object:
                          #   "status": status value, see config.file_sources["status"] for description
+                         #   "folder_path": display folder path, for FolderPath column.
 
 for file_source in config.file_sources:
 
     source_res_w = file_source["res"]
     if type(source_res_w) == str:
         source_res_w = source_res_w.decode()
-    
+
     source_dir_w = file_source["dir"]
     if type(source_dir_w) == str:
         source_dir_w = source_dir_w.decode()
+
+    source_folder_root_w = file_source["folder_root"]
+    if type(source_folder_root_w) == str:
+        source_folder_root_w = source_folder_root_w.decode()
+    if not source_folder_root_w.endswith("\\"):
+        source_folder_root_w += "\\"
 
     source_patterns = file_source["patterns"]
     if type(source_patterns) == str:
@@ -845,8 +856,11 @@ for file_source in config.file_sources:
     files = sorted(files)
 
     for _file in files:
+        folder_path = source_folder_root_w + os.path.relpath(os.path.dirname(_file),source_path_w)
+        folder_path = folder_path.replace("\\","/").rstrip("/.")
+        print "Debug: file="+repr(_file)+", folder_path="+repr(folder_path)
         sourcepath_list.append(_file)
-        sourcepath_dict[_file] = { "status": source_status }
+        sourcepath_dict[_file] = { "status": source_status, "folder_path": folder_path }
 
 utils.Msg("Found "+str(len(sourcepath_list))+" movie files in source locations")
 

@@ -23,34 +23,41 @@ _std_patterns = [                           # Standard file patterns to scan
 ]
 file_sources = [                            # Movie files to scan, as a list of dictionaries
     {
-        "res":      _std_share,             # UNC name of resource on file server
-        "dir":      "\\admauto",            # subtree to scan, on that resource (using Windows path separators)
-        "patterns": _std_patterns,          # file patterns to scan, in that subtree
-        "status":   "WORK",                 # status of movie files found in this subtree,
+        "res":          _std_share,         # UNC name of resource on file server
+        "dir":          "\\admauto",        # subtree to scan, on that resource (using Windows path separators)
+        "folder_root":  "\\Special\\AdmAuto",  # root of display folder path for the files in this subtree.
+                                            #   The display folder path of a file is this root, plus the
+                                            #   directory path relative to "dir".
+        "patterns":     _std_patterns,      # file patterns to scan, in that subtree
+        "status":       "WORK",             # status of movie files found in this subtree,
                                             #   using values of idStatus column in movies.FixedStatus table
     },
     {
-        "res":      _std_share,
-        "dir":      "\\Movies\\MissingParts",
-        "patterns": _std_patterns,
-        "status":   "MISSINGPARTS",
+        "res":          _std_share,
+        "dir":          "\\Movies\\MissingParts",
+        "folder_root":  "\\Special\\MissingParts",
+        "patterns":     _std_patterns,
+        "status":       "MISSINGPARTS",
     },
     {
-        "res":      _std_share,
-        "dir":      "\\Movies\\LowResolution+Duplicates",
-        "patterns": _std_patterns,
-        "status":   "DUPLICATE",
+        "res":          _std_share,
+        "dir":          "\\Movies\\LowResolution+Duplicates",
+        "folder_root":  "\\Special\\LowResolution+Duplicates",
+        "patterns":     _std_patterns,
+        "status":       "DUPLICATE",
     },
     {
-        "res":      _std_share,
-        "dir":      "\\Movies\\share",
-        "patterns": _std_patterns,
-        "status":   "SHARED",
+        "res":          _std_share,
+        "dir":          "\\Movies\\share",
+        "folder_root":  "\\",
+        "patterns":     _std_patterns,
+        "status":       "SHARED",
     },
     {
-        "res":      _std_share,
-        "dir":      "\\Movies\\share.disabled",
-        "patterns": _std_patterns,
-        "status":   "DISABLED",
+        "res":          _std_share,
+        "dir":          "\\Movies\\share.disabled",
+        "folder_root":  "\\",
+        "patterns":     _std_patterns,
+        "status":       "DISABLED",
     },
 ]

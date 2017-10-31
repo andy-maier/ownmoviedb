@@ -17,6 +17,11 @@
 #     Initial version with change log.
 #   V1.2.0 2012-09-02
 #     Renamed package to moviedb and restructured modules.
+#   V1.2.2 2012-09-20
+#     Added fallback for movie title parsing: If no series/episode information in Kommentar,
+#     the title of the movie is parsed for series and episode information.
+#   V1.2.3 2012-11-07
+#     Improved error message for unknown genre.
 
 
 import re, sys, os.path
@@ -198,7 +203,7 @@ def GetGenreIdList(ss_row, movie_dn):
             genres += org_genre_row["Name"]
 
         else:
-            utils.ErrorMsg("Unknown genre name (not found in Genre table): "+genre_name, num_errors)
+            utils.ErrorMsg("Genre '"+genre_name+"' not found in Genre table, in movie description for "+movie_dn, num_errors)
 
     return (genreid_list,genres)
 
@@ -311,11 +316,37 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
 
     if ss_layout == "mymdb":
 
+
         movie_row["SeriesTitle"] = None
         movie_row["OriginalSeriesTitle"] = None
         movie_row["EpisodeTitle"] = None
         movie_row["OriginalEpisodeTitle"] = None
         movie_row["EpisodeId"] = None
+
+        if movie_row["Title"] != None:
+            
+            try:
+                parsed_title = utils.ParseComplexTitle(movie_row["Title"])
+            except utils.ParseError as exc:
+                utils.ErrorMsg(u"Skipping movie: "+unicode(exc))
+                raise
+    
+            movie_row["SeriesTitle"] = parsed_title["series_title"]
+            movie_row["EpisodeTitle"] = parsed_title["episode_title"]
+            movie_row["EpisodeId"] = parsed_title["episode_id"]
+
+        if movie_row["OriginalTitle"] != None:
+            
+            try:
+                parsed_title = utils.ParseComplexTitle(movie_row["OriginalTitle"])
+            except utils.ParseError as exc:
+                utils.ErrorMsg(u"Skipping movie: "+unicode(exc))
+                raise
+    
+            movie_row["OriginalSeriesTitle"] = parsed_title["series_title"]
+            movie_row["OriginalEpisodeTitle"] =  parsed_title["episode_title"]
+            if movie_row["EpisodeId"] == None:
+                movie_row["EpisodeId"] = parsed_title["episode_id"]
 
         kommentar = ss_row["Kommentar"]
 

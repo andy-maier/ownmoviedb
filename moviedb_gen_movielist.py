@@ -24,7 +24,6 @@ from operator import itemgetter, attrgetter, methodcaller
 import MySQLdb
 from moviedb import config, utils, version
 
-
 my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
 outcsv_file = "movielist.csv"  # file name of output CSV file
