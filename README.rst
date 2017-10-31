@@ -18,6 +18,11 @@ This package is a Python source distribution that is designed for installation a
 Change History
 --------------
 
+V1.4.1 2014-02-24
+~~~~~~~~~~~~~~~~~
+
+* Fixed invalid index bug in ParseMovieFilename().
+
 V1.4.0 2013-09-09
 ~~~~~~~~~~~~~~~~~
 

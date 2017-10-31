@@ -22,6 +22,8 @@
 #     Added support for .avi file extension (just .avi, not .div.avi or .mpg.avi) in ParseMovieFilename().
 #     Added support for more than one language in ParseMovieFilename().
 #     Added 'AE' and middle dot characters to normalization.
+#   V1.4.1 2014-02-24
+#     Fixed invalid index bug in ParseMovieFilename().
 
 import re, string, sys, subprocess, os, os.path, fnmatch, time
 
@@ -445,6 +447,8 @@ def ParseMovieFilename(filename,tolerate_noext=False):
     qblock_words = qblock.strip(" ").split(" ")
 
     # Determine 3D indicator
+    if len(qblock_words) == 0:
+        raise ParseError(u"Missing quality and display aspect ratio in movie file name: \""+filename+"\"")
     if qblock_words[0] == "3D":
         rv["3d"] = True
         qblock_words = qblock_words[1:]
@@ -452,8 +456,10 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         rv["3d"] = False
 
     # Determine language indicators (including subtitles)
+    if len(qblock_words) == 0:
+        raise ParseError(u"Missing quality and display aspect ratio in movie file name: \""+filename+"\"")
     m = re.match(r"^([a-z]{2,3}(?:\+[a-z]{2,3})*)(?:-U(?:-([a-z]{2,3}))?)?$",qblock_words[0])
-    if m != None:
+    if m is not None:
         rv["audio_lang"] = m.group(1)               # The specified audio language(s)
         _gl = len(m.groups())
         if _gl == 1: # just the audio language(s) specified, no -U
@@ -468,17 +474,21 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         rv["subtitle_lang"] = None                  # No subtitles
 
     # Determine quality
+    if len(qblock_words) == 0:
+        raise ParseError(u"Missing quality and display aspect ratio in movie file name: \""+filename+"\"")
     rv["quality"] = qblock_words[0]
     qblock_words = qblock_words[1:]
 
     # Determine desired display aspect ratio
+    if len(qblock_words) == 0:
+        raise ParseError(u"Missing quality and display aspect ratio in movie file name: \""+filename+"\"")
     m = re.match(r"^([0-9]+)x([0-9]+)$",qblock_words[0])
-    if m != None:
+    if m is not None:
         rv["dar_w"] = m.group(1)
         rv["dar_h"] = m.group(2)
+        qblock_words = qblock_words[1:]
     else:
         raise ParseError(u"Invalid display aspect ratio \""+qblock_words[0]+"\" in movie file name: \""+filename+"\"")
-    qblock_words = qblock_words[1:]
 
     # Determine technical comments
     if len(qblock_words) > 0:
