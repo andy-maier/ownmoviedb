@@ -25,11 +25,11 @@ matrix:
       python: "2.7"
       env:
         - PACKAGE_LEVEL=latest
-    - os: linux
-      language: python
-      python: "3.4"
-      env:
-        - PACKAGE_LEVEL=minimum
+#    - os: linux
+#      language: python
+#      python: "3.4"
+#      env:
+#        - PACKAGE_LEVEL=minimum
 #    - os: linux
 #      language: python
 #      python: "3.4"
@@ -50,11 +50,11 @@ matrix:
 #      python: "3.6"
 #      env:
 #        - PACKAGE_LEVEL=minimum
-    - os: linux
-      language: python
-      python: "3.6"
-      env:
-        - PACKAGE_LEVEL=latest
+#    - os: linux
+#      language: python
+#      python: "3.6"
+#      env:
+#        - PACKAGE_LEVEL=latest
 #    - os: linux
 #      language: python
 #      python: "pypy-5.3.1"  # Python 2.7.10
@@ -112,7 +112,7 @@ install:
         export PYTHON_CMD=python3;
         export PIP_CMD=pip3;
       fi;
-    else
+   else
       export PYTHON_CMD=python;
       export PIP_CMD=pip;
     fi;
