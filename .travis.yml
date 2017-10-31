@@ -138,7 +138,7 @@ install:
   - $PIP_CMD list
   - make install
   - make develop
-  - $PIP_CMD install python-coveralls
+  - $PIP_CMD list
 
 # commands to run builds & tests
 script:
