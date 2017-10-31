@@ -135,6 +135,7 @@ install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
       virtualenv venv -p $PYTHON_CMD && source venv/bin/activate;
     fi
+  - $PYTHON_CMD remove_duplicate_setuptools.py
   - $PIP_CMD list
   - make install
   - make develop
