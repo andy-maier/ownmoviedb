@@ -186,7 +186,6 @@ all: install develop check pylint test build builddoc
 
 .PHONY: _pip
 _pip:
-	$(PYTHON_CMD) remove_duplicate_setuptools.py
 	@echo 'Installing/upgrading pip, setuptools, wheel and pbr with PACKAGE_LEVEL=$(PACKAGE_LEVEL)'
 	$(PIP_CMD) install $(pip_level_opts) pip setuptools wheel pbr
 
