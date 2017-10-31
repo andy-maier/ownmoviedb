@@ -5,6 +5,12 @@
 notifications:
   email: false
 
+# Disabling the distro, so we get the latest.
+# Note that for Python 3.7 and higher, at least Ubuntu xenial is required.
+# dist:
+#   - xenial  # 16.04, default since 6/2019
+#   - bionic  # 18.04
+
 # We define the job matrix explicitly, in order to minimize the
 # combinations.
 # For OS-X, using an explicit matrix is required, because Travis at
@@ -57,13 +63,23 @@ matrix:
 #        - PACKAGE_LEVEL=latest
 #    - os: linux
 #      language: python
-#      python: "pypy-5.3.1"  # Python 2.7.10
+#      python: "pypy"   # Python 2.7.13 (as of 11/2019)
 #      env:
 #        - PACKAGE_LEVEL=minimum
 #    - os: linux
 #      language: python
-#      python: "pypy-5.3.1"  # Python 2.7.10
+#      python: "pypy"   # Python 2.7.13 (as of 11/2019)
+#        env:
+#        - PACKAGE_LEVEL=latest
+#    - os: linux
+#      language: python
+#      python: "pypy3"   # Python 3.6.1 (as of 11/2019)
 #      env:
+#        - PACKAGE_LEVEL=minimum
+#    - os: linux
+#      language: python
+#      python: "pypy3"   # Python 3.6.1 (as of 11/2019)
+#        env:
 #        - PACKAGE_LEVEL=latest
 #    - os: osx
 #      language: generic
@@ -137,6 +153,7 @@ install:
     fi
   - $PYTHON_CMD remove_duplicate_setuptools.py
   - $PIP_CMD list
+  - make platform
   - make install
   - make develop
   - $PIP_CMD list
