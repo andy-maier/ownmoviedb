@@ -20,7 +20,6 @@
 Module defining package version for ownmoviedb project.
 """
 
-import sys
 import pbr.version
 
 __all__ = ['__version__']
