@@ -17,7 +17,7 @@ Installation
        git clone {repo-url} moviedb
        cd moviedb
 
-3. Configure the connection to your MySql installation, location of your media
+3. Configure the connection to your MySql server, location of your media
    files, and other parameters::
 
        vi moviedb/config.py
@@ -27,6 +27,10 @@ Installation
 
        make install
 
+5. Create the 'movies' database in your MySql server, by running
+   this SQL file in phpAdmin or in a similar admin tool::
+
+       create_movies_database.sql
 
 Change History
 --------------
