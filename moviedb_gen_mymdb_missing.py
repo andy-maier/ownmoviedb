@@ -14,6 +14,8 @@
 #
 # Change log:
 #   V1.0.1 2012-08-13
+#   V1.4.0 2013-09-12
+#     Added directories to filepath_begin_list.
 
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
@@ -31,13 +33,14 @@ series_as_one_entry = False     # Boolean controlling that the report shortens s
 
 filepath_begin_list = (         # file paths (or begins thereof) that will be listed
   "\\admauto",
-  "\\Movies\\share\\Spielfilme",
-  "\\Movies\\share\\Kinderfilme",
-  "\\Movies\\share\\Maerchen",
-  "\\Movies\\share\\Krimiserien\\Wallander",
-  "\\Movies\\share\\Krimiserien\\Barbarotti",
-  "\\Movies\\share\\Krimiserien\\Brenner",
-  "\\Movies\\share\\Krimiserien\\James Bond 007",
+  "\\Movies\\share\\Spielfilme\\",
+  "\\Movies\\share\\Neu\\",
+  "\\Movies\\share\\Kinderfilme\\",
+  "\\Movies\\share\\Maerchen\\",
+  "\\Movies\\share\\Krimiserien\\Wallander\\",
+  "\\Movies\\share\\Krimiserien\\Barbarotti\\",
+  "\\Movies\\share\\Krimiserien\\Brenner\\",
+  "\\Movies\\share\\Krimiserien\\James Bond 007\\",
 )
 
 #------------------------------------------------------------------------------

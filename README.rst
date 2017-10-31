@@ -18,6 +18,17 @@ This package is a Python source distribution that is designed for installation a
 Change History
 --------------
 
+V1.4.0 2013-09-09
+~~~~~~~~~~~~~~~~~
+
+* Added support for .avi file extension (just .avi, not .div.avi or .mpg.avi)
+  in ParseMovieFilename().
+* Added support for more than one language in ParseMovieFilename().
+* Added 'AE' and middle dot characters to normalization.
+* Added directories to filepath_begin_list.
+* Tolerate empty genres (e.g. caused by trailing comma, as in: "Action,").
+* Added support for more than one audio stream.
+
 V1.3.1 2013-05-19
 ~~~~~~~~~~~~~~~~~
 

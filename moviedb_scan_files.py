@@ -20,7 +20,10 @@
 #     Moved file_sources to movies_config.
 #   V1.2.0 2012-09-02
 #     Renamed package to moviedb and restructured modules.
+#   V1.3.0 2012-12-26
 #     Added support for FolderPath column.
+#   V1.4.0 2013-09-09
+#     Added support for more than one audio stream.
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
@@ -235,9 +238,9 @@ def GetMovieInfo(moviefile_uncpath):
                 if track_elem_list == None:
                     utils.ErrorMsg("Missing media info: mediainfo_cli XML output does not have any <track> elements for file: \""+moviefile_uncpath+"\"", num_errors)
                 else:
-                    if len(track_elem_list) != 3:
+                    if len(track_elem_list) < 3:
                         # This symptom is caused by files that are being written as part of conversion.
-                        utils.WarningMsg("Missing media info: mediainfo_cli XML output does not have the expected 3 <track> elements (possibly being written): \""+moviefile_uncpath+"\"")
+                        utils.WarningMsg("Missing media info: mediainfo_cli XML output does not have the expected 3 or more <track> elements (possibly being written): \""+moviefile_uncpath+"\"")
                     else:
                         general_elem = None
                         video_elem = None
@@ -248,7 +251,13 @@ def GetMovieInfo(moviefile_uncpath):
                             if elem.get("type") == "Video":
                                 video_elem = elem
                             if elem.get("type") == "Audio":
-                                audio_elem = elem
+                                if audio_elem == None:
+                                    # remember the first audio stream
+                                    audio_elem = elem
+                                else:
+                                    # issue a warning for the second and further audio streams, for now.
+                                    utils.WarningMsg("Ignoring additional audio stream in file: \""+moviefile_uncpath+"\"")
+
                         if general_elem == None:
                             utils.ErrorMsg("Missing media info: mediainfo_cli XML output does not have a <track> element of type 'General' for file: \""+moviefile_uncpath+"\"", num_errors)
                         else:
@@ -858,7 +867,6 @@ for file_source in config.file_sources:
     for _file in files:
         folder_path = source_folder_root_w + os.path.relpath(os.path.dirname(_file),source_path_w)
         folder_path = folder_path.replace("\\","/").rstrip("/.")
-        print "Debug: file="+repr(_file)+", folder_path="+repr(folder_path)
         sourcepath_list.append(_file)
         sourcepath_dict[_file] = { "status": source_status, "folder_path": folder_path }
 
@@ -868,7 +876,7 @@ utils.Msg("Found "+str(len(sourcepath_list))+" movie files in source locations")
 # Connection to movie database
 movies_conn = MySQLdb.connect( host=config.mysql_host, user=config.mysql_user,
                                db=config.mysql_db, use_unicode=True, charset='utf8')
-
+# Todo: exception handling, e.g. _mysql_exceptions.OperationalError
 
 # Build idvideoquality_dict dictionary from FixedQuality table in movie database
 _cursor = movies_conn.cursor(MySQLdb.cursors.DictCursor)

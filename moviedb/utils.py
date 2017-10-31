@@ -18,7 +18,10 @@
 #   V1.2.1 2012-09-03
 #     Improved algorithm to detect series.
 #     No longer removing bracket text from titles.
-
+#   V1.4.0 2013-09-09
+#     Added support for .avi file extension (just .avi, not .div.avi or .mpg.avi) in ParseMovieFilename().
+#     Added support for more than one language in ParseMovieFilename().
+#     Added 'AE' and middle dot characters to normalization.
 
 import re, string, sys, subprocess, os, os.path, fnmatch, time
 
@@ -107,11 +110,14 @@ def _PrintMsg(msg):
 
 #------------------------------------------------------------------------------
 # Translation table for normalizing strings for comparison
+# Tuple elements: #1 = Decimal Unicode code point, #2 = character sequence to
+# translate to.
 _normalize_utrans_table = [
     (228, 'ae'),  # a umlaut
     (246, 'oe'),  # o umlaut
     (252, 'ue'),  # u umlaut
     (223, 'ss'),  # german sharp s
+    (198, 'Ae'),  # AE
     (196, 'Ae'),  # A umlaut
     (214, 'Oe'),  # O umlaut
     (220, 'Ue'),  # U umlaut
@@ -151,6 +157,7 @@ _normalize_utrans_table = [
     (218, 'U'),   # U acute
     (217, 'U'),   # U grave
     (219, 'U'),   # U circumflex
+    (183, '-'),   # middle dot
     (32,  '  '),  # space (to handle ' aside of space)
     (33,  ' '),   # !
     (35,  ' '),   # #
@@ -158,6 +165,7 @@ _normalize_utrans_table = [
     (37,  ' '),   # %
     (38,  ' '),   # &
     (39,  ''),    # '
+    (8217,''),    # U+2019 RIGHT SINGLE QUOTATION MARK
     (40,  ' '),   # (
     (41,  ' '),   # )
     (42,  ' '),   # *
@@ -359,9 +367,9 @@ def ParseMovieFilename(filename,tolerate_noext=False):
             Quality block (mandatory, in parenthesis):
                 3D          Optional: Presence indicates that the movie is some sort of 3D movie.
                 {lang}      Optional: Language of the audio stream in the movie and language of any subtitles.
-                            Must be in format: {lang}[-U[-{lang}]]
+                            Must be in format: {lang}(+{lang})*[-U[-{lang}]]
                             where {lang} is a 2- or 3-char language code.
-                            For example: "en", "fr-U", "ar-U-fr".
+                            For example: "en", "de+en", "fr-U", "ar-U-fr".
                             Presence of "-U" indicates that the movie has subtitles (Untertitel).
                             The default language is "de", both of the audio stream and of the subtitles.
                             It is not currently supported to have more than one audio stream per media file
@@ -384,7 +392,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
            uncut            Presence indicates that the movie is not yet cut (i.e. contains advertisements, or
                             extra content at begin or end)
            {ext}            File extension, indicates the container format.
-                            Must be one of: "mp4", "divx.avi", "mpg.avi", "mkv"
+                            Must be one of: "mp4", "divx.avi", "mpg.avi", "api", "mkv"
                             A missing file extension is tolerated if tolerate_noext is True.
 
     Returns:
@@ -444,11 +452,11 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         rv["3d"] = False
 
     # Determine language indicators (including subtitles)
-    m = re.match(r"^([a-z]{2,3})(-U(?:-([a-z]{2,3}))?)?$",qblock_words[0])
+    m = re.match(r"^([a-z]{2,3}(?:\+[a-z]{2,3})*)(?:-U(?:-([a-z]{2,3}))?)?$",qblock_words[0])
     if m != None:
-        rv["audio_lang"] = m.group(1)               # The specified audio language
+        rv["audio_lang"] = m.group(1)               # The specified audio language(s)
         _gl = len(m.groups())
-        if _gl == 1: # just the audio language specified, no -U
+        if _gl == 1: # just the audio language(s) specified, no -U
             rv["subtitle_lang"] = None              # No subtitles
         elif _gl == 2: # -U specified without subtitle language
             rv["subtitle_lang"] = "de"              # The default subtitle language
@@ -488,11 +496,14 @@ def ParseMovieFilename(filename,tolerate_noext=False):
         rv["container"] = "MP4"
         part2_words = part2_words[0:-1]
     elif filename_part2.endswith(".divx.avi"):
-        rv["container"] = "DIVX AVI"
+        rv["container"] = "AVI"
         part2_words = part2_words[0:-2]
     elif filename_part2.endswith(".mpg.avi"):
-        rv["container"] = "MPG AVI"
+        rv["container"] = "AVI"
         part2_words = part2_words[0:-2]
+    elif filename_part2.endswith(".avi"):
+        rv["container"] = "AVI"
+        part2_words = part2_words[0:-1]
     elif filename_part2.endswith(".mkv"):
         rv["container"] = "MKV"
         part2_words = part2_words[0:-1]

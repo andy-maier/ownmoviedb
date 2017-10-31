@@ -20,8 +20,10 @@
 #   V1.2.2 2012-09-20
 #     Added fallback for movie title parsing: If no series/episode information in Kommentar,
 #     the title of the movie is parsed for series and episode information.
-#   V1.2.3 2012-11-07
+#   V1.3.0 2012-11-07
 #     Improved error message for unknown genre.
+#   V1.4.0 2013-09-12
+#     Tolerate empty genres (e.g. caused by trailing comma, as in: "Action,").
 
 
 import re, sys, os.path
@@ -186,6 +188,9 @@ def GetGenreIdList(ss_row, movie_dn):
 
     for genre_name in genre_name_list:
 
+        if genre_name == "":
+            continue
+
         genre_name = genre_name.strip(" ")
         normalized_genre_name = utils.NormalizeString(genre_name)
 
@@ -324,25 +329,25 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
         movie_row["EpisodeId"] = None
 
         if movie_row["Title"] != None:
-            
+
             try:
                 parsed_title = utils.ParseComplexTitle(movie_row["Title"])
             except utils.ParseError as exc:
                 utils.ErrorMsg(u"Skipping movie: "+unicode(exc))
                 raise
-    
+
             movie_row["SeriesTitle"] = parsed_title["series_title"]
             movie_row["EpisodeTitle"] = parsed_title["episode_title"]
             movie_row["EpisodeId"] = parsed_title["episode_id"]
 
         if movie_row["OriginalTitle"] != None:
-            
+
             try:
                 parsed_title = utils.ParseComplexTitle(movie_row["OriginalTitle"])
             except utils.ParseError as exc:
                 utils.ErrorMsg(u"Skipping movie: "+unicode(exc))
                 raise
-    
+
             movie_row["OriginalSeriesTitle"] = parsed_title["series_title"]
             movie_row["OriginalEpisodeTitle"] =  parsed_title["episode_title"]
             if movie_row["EpisodeId"] == None:
@@ -404,7 +409,7 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
         colname = colname_m_l_dict[ss_layout]["EpisodeId"]
         movie_row["EpisodeId"] = None if colname == None or colname not in ss_row else ss_row[colname]
 
-        
+
     # movie_row["CoverImage"] = None
 
     colname = colname_m_l_dict[ss_layout]["Duration"]
@@ -429,31 +434,31 @@ def GetMovieRow(ss_row, movie_dn, ss_layout):
     if colname == None or colname not in ss_row:
         movie_row["OriginatingCountries"] = None
     else:
-        movie_row["OriginatingCountries"] = None if ss_row[colname] == "" else ss_row[colname] 
+        movie_row["OriginatingCountries"] = None if ss_row[colname] == "" else ss_row[colname]
 
     colname = colname_m_l_dict[ss_layout]["Genres"]
     if colname == None or colname not in ss_row:
         movie_row["Genres"] = None
     else:
-        movie_row["Genres"] = None if ss_row[colname] == "" else ss_row[colname] 
+        movie_row["Genres"] = None if ss_row[colname] == "" else ss_row[colname]
 
     colname = colname_m_l_dict[ss_layout]["Directors"]
     if colname == None or colname not in ss_row:
         movie_row["Directors"] = None
     else:
-        movie_row["Directors"] = None if ss_row[colname] == "" else ss_row[colname] 
+        movie_row["Directors"] = None if ss_row[colname] == "" else ss_row[colname]
 
     colname = colname_m_l_dict[ss_layout]["Actors"]
     if colname == None or colname not in ss_row:
         movie_row["Actors"] = None
     else:
-        movie_row["Actors"] = None if ss_row[colname] == "" else ss_row[colname] 
+        movie_row["Actors"] = None if ss_row[colname] == "" else ss_row[colname]
 
     colname = colname_m_l_dict[ss_layout]["Description"]
     if colname == None or colname not in ss_row:
         movie_row["Description"] = None
     else:
-        movie_row["Description"] = None if ss_row[colname] == "" else ss_row[colname] 
+        movie_row["Description"] = None if ss_row[colname] == "" else ss_row[colname]
 
     colname = colname_m_l_dict[ss_layout]["AspectRatio"]
     if colname == None or colname not in ss_row:
@@ -840,7 +845,7 @@ def UpdateMovie(ss_row, movie_row, ss_layout):
 def AddMovie(ss_row, ss_layout):
 
     global verbose_mode
-    
+
     colname = colname_m_l_dict[ss_layout]["Title"]
     new_title = ss_row[colname]
 
@@ -1120,7 +1125,7 @@ def GetAspectRatio(bildformat,movie_dn):
     #  dar_s: aspect ratio as a display string, e.g. "16x9"
 
     global num_errors
-    
+
     result_delimiter = "x"    # delimiter between width and height to be used in result
     max_dar_failure = 0.02        # max failure for recognizing whole ratios
 
@@ -1526,7 +1531,7 @@ elif ss_ext == ".csv":
                 colx += 1
             ss_rowlist.append(ss_row)
         rowx += 1
-        
+
     # Todo: close spreadsheet file
 
 else:

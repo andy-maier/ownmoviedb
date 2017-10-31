@@ -15,5 +15,5 @@ Author:
 '''
 
 
-__version__ = '1.3.1'               # Version of this package.
+__version__ = '1.4.0'               # Version of this package.
 
