@@ -61,6 +61,8 @@ V1.5.0 not yet released
 * Obtain package version from pbr.
 * Fixed all flake8 errors in moviedb package (not yet in the scripts).
 * Added support for Travis CI.
+* Switched from using MySQL-python to using mysqlclient package, which is a
+  fork with Python 3 support and many fixes.
 
 V1.4.3 2016-11-13
 ~~~~~~~~~~~~~~~~~
