@@ -17,6 +17,21 @@
 ownmoviedb - Python utilities for creating and updating my own movie database
 =============================================================================
 
+Overview
+--------
+
+This package maintains a movie database in MySQL. It has scripts that populate
+the database with information that gets scanned from media files (e.g. title, streams)
+and with information about movies from a spreadsheet that has MyMDB export format.
+
+The maintenance of the metadata about the movies is therefore done in external
+software such as MyMDB.
+
+Unfortunately, MyMDB is not maintained any longer. Alternatives to be investigated:
+
+* Griffith (https://github.com/micjahn/Griffith)
+
+
 Installation
 ------------
 
