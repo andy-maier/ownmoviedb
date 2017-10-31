@@ -26,10 +26,18 @@ my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 outfile_cp = "utf-8"            # code page used for output CSV file
 out_file = "mymdb_missing.csv"
 
+series_as_one_entry = False     # Boolean controlling that the report shortens series
+                                # to one entry for the series (instead of reporting each episode).
+
 filepath_begin_list = (         # file paths (or begins thereof) that will be listed
   "\\admauto",
   "\\Movies\\share\\Spielfilme",
   "\\Movies\\share\\Kinderfilme",
+  "\\Movies\\share\\Maerchen",
+  "\\Movies\\share\\Krimiserien\\Wallander",
+  "\\Movies\\share\\Krimiserien\\Barbarotti",
+  "\\Movies\\share\\Krimiserien\\Brenner",
+  "\\Movies\\share\\Krimiserien\\James Bond 007",
 )
 
 #------------------------------------------------------------------------------
@@ -135,7 +143,7 @@ for medium_row in medium_rowlist:
             series_title = medium_row["SeriesTitle"]
             title = medium_row["Title"]
 
-            if series_title != None:
+            if series_as_one_entry and series_title != None:
                 title_pure = utils.StripSquareBrackets(series_title)
             else:
                 title_pure = utils.StripSquareBrackets(title)
@@ -154,12 +162,12 @@ for medium_row in medium_rowlist:
 utils.Msg("Found "+str(len(medium_out_dict))+" movie files without movie information")
 
 
-utils.Msg("Writing MyMDb import file: "+out_file+" ...")
+utils.Msg("Writing report file: "+out_file+" ...")
 
 try:
     out_fp = open(out_file,"w")
 except IOError as (errno, strerror):
-    utils.ErrorMsg("Cannot open output file for writing: "+out_file+", "+strerror, num_errors)
+    utils.ErrorMsg("Cannot open report file for writing: "+out_file+", "+strerror, num_errors)
 
 else:
 

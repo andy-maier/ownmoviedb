@@ -18,6 +18,12 @@ This package is a Python source distribution that is designed for installation a
 Change History
 --------------
 
+V1.3.1 2013-05-19
+~~~~~~~~~~~~~~~~~
+
+* Renamed output CSV file to AM_MovieList.csv.
+* Added DAR and ODAR columns to CSV file.
+
 V1.3.0 2012-12-26
 ~~~~~~~~~~~~~~~~~
 

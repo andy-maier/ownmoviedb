@@ -17,7 +17,9 @@
 #     Added Homenet rating columns based on UserMovieOpinion table.
 #     Fixed Excel CSV issue by replacing \r with \n in content of string cells, because \r triggers new row in Excel.
 #   V1.1.1 2012-08-13
-
+#   V1.3.1 2013-05-19
+#     Renamed output CSV file to AM_MovieList.csv.
+#     Added DAR and ODAR columns to CSV file.
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller
@@ -26,8 +28,8 @@ from moviedb import config, utils, version
 
 my_name = os.path.basename(os.path.splitext(sys.argv[0])[0])
 
-outcsv_file = "movielist.csv"  # file name of output CSV file
-outcsv_cp = "utf-8"            # code page used for output CSV file
+outcsv_file = "AM_MovieList.csv"  # file name of output CSV file
+outcsv_cp = "utf-8"               # code page used for output CSV file
 
 filepath_begin_list = (         # file paths (or begins thereof) with movie files that will be listed
   "\\admauto",
@@ -176,6 +178,8 @@ _cursor.execute("SELECT\
   FixedQuality.Name AS Quality,\
   Medium.DesiredDisplayAspectRatioWidth AS DesiredDisplayAspectRatioWidth,\
   Medium.DesiredDisplayAspectRatioHeight AS DesiredDisplayAspectRatioHeight,\
+  Medium.DisplayAspectRatio AS DisplayAspectRatio,\
+  Medium.OriginalDisplayAspectRatio AS OriginalDisplayAspectRatio,\
   FixedStatus.Name AS Status,\
   Medium.Uncut AS Uncut,\
   Medium.TechnicalFlaws AS TechnicalFlaws,\
@@ -253,12 +257,14 @@ else:
         '"Episodentitel",' +\
         '"EpisodenId",' +\
         '"Jahr",' +\
-        '"Länge [min]",' +\
+        '"Laenge [min]",' +\
         '"Sprache",' +\
-        '"Qualität",' +\
+        '"Qualitaet",' +\
         '"Aspect Ratio",' +\
+        '"DAR Feld",' +\
+        '"ODAR Feld",' +\
         '"Schnitt Status",' +\
-        '"Technische Mängel",' +\
+        '"Technische Maengel",' +\
         '"Container Format",' +\
         '"Video Format",' +\
         '"Video Profil",' +\
@@ -305,6 +311,8 @@ else:
             '"'+OutStr(out_entry["Quality"])+'",'+\
             '"'+("" if out_entry["DesiredDisplayAspectRatioWidth"] == None
                 else OutStr(out_entry["DesiredDisplayAspectRatioWidth"])+'x'+OutStr(out_entry["DesiredDisplayAspectRatioHeight"]))+'",'+\
+            ''+OutStr(out_entry["DisplayAspectRatio"],"float")+','+\
+            ''+OutStr(out_entry["OriginalDisplayAspectRatio"],"float")+','+\
             '"'+("Ungeschnitten" if out_entry["Uncut"] > 0 else "Geschnitten")+'",'+\
             '"'+OutStr(out_entry["TechnicalFlaws"])+'",'+\
             '"'+OutStr(out_entry["ContainerFormat"])+'",'+\

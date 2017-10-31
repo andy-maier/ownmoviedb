@@ -531,7 +531,8 @@ def ParseMovieFilename(filename,tolerate_noext=False):
 
 #------------------------------------------------------------------------------
 def ParseComplexTitle(complex_title):
-    '''Parse the complex title of a movie and return the information as a dictionary.
+    '''
+    Parse the complex title of a movie and return the information as a dictionary.
 
     Parameters:
         complex_title       Complex title, in the following format.
@@ -545,40 +546,66 @@ def ParseComplexTitle(complex_title):
             () surround choices, separated with |
 
         1. Optional release year is determined and removed: Rightmost occurrence of " (NNNN)".
+
         2. Remaining title text must have one of the following formats:
 
             {title}
-            {series_title}( - |, ){episode_id}[ - {episode_title}]
+            {series_title}, {part_episode_id}[ - {episode_title}]
+            {series_title} - {episode_id}[ - {episode_title}]
 
         Where:
 
-            {title}         Title of movie that is not an episode of a series.
-                            May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
-            {series_title}  Title of movie series this movie is an episode of.
-                            May contain " - " or ", "; requiring that the matching of {episode_id} is pretty tight.
-            {episode_id}    Identifier for this episode, in one of the following formats:
-                                {sequential}         Sequential identifier of episode within the whole series.
-                                {season}.{episode}   Identifiers for season and for episode within season.
-                                {part} {sequential}  Sequential identifier of episode within the whole series,
-                                                     with {part} being some keyword such as "Part", "Teil", "Folge".
-                            Typically these identifiers are integer numbers, but they can also be text.
-            {episode_title} Title of this episode.
-                            May contain " - " or ", "; matching is non-greedy.
+            {title}             Title of a movie that is not an episode of a series.
+                                May contain " - " or ", ".
+
+            {series_title}      Title of movie series or miniseries this movie is an episode or part of.
+                                May contain " - " or ", ".
+
+            {part_episode_id}   Identifier for the part or episode, if the movie is an episode of a series
+                                or a part of a miniseries, in this format:
+                                  {num_part_kw} {part_num}(+{part_num})*    Part keyword and a part number.
+                                  {date_part_kw} {part_date}                Part keyword and a part date.
+                                where:
+                                  {num_part_kw}             One of: "Part", "Teil", "Folge", "Doppelfolge",
+                                                                    "Buch, "Book", "Episode", "Film", "Fall"
+                                  {part_num}                ([0-9.]{1,5}[a-z]|[IVX]{1,5})
+                                  {date_part_kw}            One of: "Spezial"
+                                  {part_date}               YYYY-MM-DD
+
+            {episode_id}        Identifier for the episode, if the movie is an episode of a series,
+                                in one of these formats:
+                                  {episode_seq}(+{episode_seq})*            Sequential identifier of episode within the whole series.
+                                  {season}.{episode}(+{season}.{episode})*  Identifiers for season and for episode within season.
+                                where:
+                                  {episode_seq}             [0-9x]{1,4}[a-z]?
+                                  {season}                  [0-9xA-Z]{1,3}
+                                  {episode}                 [0-9x]{1,2}[a-z]?
+
+            {episode_title}     Title of this episode.
+                                May contain " - " or ", ".
+
+        If the complex title did not have one of these formats, this function raises a ParseError
+        exception with an error message stating the issue.
 
     Returns:
         If the complex title could be parsed, returns a dictionary with information from the title:
-            "title"         Title (complex title with "(year)" removed), as unicode type.
-            "year"          Release year of the movie if one was specified, as unicode type.
-                            If no release year was specified, None.
-            "series_title"  For a movie that is an episode of a series, the series title, as unicode type.
-                            Otherwise, None.
-            "episode_id"    For a movie that is an episode of a series, the identifier for this episode,
-                            as unicode type. Otherwise, None.
-            "episode_title" For a movie that is an episode of a series, the episode title, as unicode type.
-                            Otherwise, or if there is no episode title specified, None.
 
-        If the complex title could not be parsed, raises a ParseError exception with an error message stating the issue.
-        (Note: At this point, no ParseError exceptions are raised, but the caller should assume they can be raised).
+            "title"             Title (complex title with "(year)" removed), as unicode type.
+
+            "year"              Release year of the movie if one was specified, as unicode type.
+                                If no release year was specified, None.
+
+            "series_title"      For a movie that is an episode of a series, the series title, as unicode type.
+                                Otherwise, None.
+
+            "episode_id"        For a movie that is an episode of a series, the identifier for this episode,
+                                as unicode type (i.e. either {series_part_id} or {series_episode_id}).
+                                For a movie that is not an episode of a series, the miniseries identifier
+                                {miniseries_part_id} if it has one, or None if it does not have one.
+
+            "episode_title"     For a movie that is an episode of a series, the episode title, as unicode type,
+                                or None if no episode title was specified.
+                                For a movie that is not an episode of a series, None.
     '''
 
     rv = dict()         # return value dictionary, see description.
@@ -603,11 +630,6 @@ def ParseComplexTitle(complex_title):
     rv["title"] = complex_title
 
     # Determine episode and series information
-    rv["series_title"] = None
-    rv["episode_id"] = None
-    rv["episode_title"] = None
-
-    # print "Debug: Trying to find episode in complex_title "+repr(complex_title)
 
     # We match everything in one expression, because the sequences " - " and ", " that introduce
     # the episode identifier can also occur in the series title.
@@ -615,22 +637,25 @@ def ParseComplexTitle(complex_title):
     # if a subset of the other (e.g. "NN" and "NN.NN"), or if episode identifiers occur multiple times,
     # for example: "Series - 01.1 - Episode, Teil 1", in which case the order determines precedence.
     match_str = r"^(.+?)"+\
-                r"( - [0-9A-Zx]{1,3}[.\-][0-9x]{1,2}[a-z]?(?:\+[0-9A-Zx]{1,3}[.\-][0-9x]{1,2}[a-z]?)*"+\
+                r"( - [0-9A-Zx]{1,3}[.][0-9x]{1,2}[a-z]?(?:\+[0-9A-Zx]{1,3}[.][0-9x]{1,2}[a-z]?)*"+\
                 r"| - [0-9Xx]{1,4}[a-z]?(?:\+[0-9Xx]{1,4}[a-z]?)*"+\
                 r"| - Spezial [0-9x]{4}-[0-9x]{2}-[0-9x]{2}"+\
-                r"|, (?:Teil|[Pp]art|Folge|Buch|[Bb]ook|Episode|Film) (?:[0-9.]{1,5}(?:\+[0-9.]{1,5})*|[IVX]{1,4}(?:\+[IVX]{1,4})*))"+\
+                r"|, (?:Teil|[Pp]art|Doppelfolge|Folge|Buch|[Bb]ook|Episode|Film|Fall) (?:[0-9.]{1,5}[a-z]?(?:\+[0-9.]{1,5}[a-z]?)*|[IVX]{1,5}(?:\+[IVX]{1,5})*))"+\
                 r"(?: - (.+))?$"
     m = re.match(match_str,complex_title)
     if m != None:
         # Movie is an episode of a series
-        # print "Debug: groups: "+repr(m.groups())
         rv["series_title"] = m.group(1).strip(" ")
         rv["episode_id"] = m.group(2).lstrip(" - ").lstrip(", ").strip(" ")
-        # print "Debug: Found episode_id "+repr(rv["episode_id"])
         if m.group(3) != None:
             rv["episode_title"] = m.group(3).strip(" ")
         else:
             rv["episode_title"] = None
+    else:
+        # Movie is not an episode of a series
+        rv["series_title"] = None
+        rv["episode_id"] = None
+        rv["episode_title"] = None
 
     return rv
 
@@ -664,3 +689,227 @@ def HasEpisodeDescription(series_title, episode_id):
 
 
 #------------------------------------------------------------------------------
+def test_ParseComplexTitle():
+    '''
+    Test the ParseComplexTitle() function.
+    '''
+    print "Testing function ParseComplexTitle() ..."
+    num_failed = 0
+
+    num_failed += test_one_ParseComplexTitle( "A",
+                                   { "title": "A",
+                                      "year": None,
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (1999)",
+                                   { "title": "A",
+                                      "year": "1999",
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (1999) (2000)",
+                                   { "title": "A (1999)",
+                                      "year": "2000",
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (1999) B",
+                                   { "title": "A B",
+                                      "year": "1999",
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (1999) 2000",
+                                   { "title": "A 2000",
+                                      "year": "1999",
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (199)",
+                                   { "title": "A (199)",
+                                      "year": None,
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (199x)",
+                                   { "title": "A (199x)",
+                                      "year": None,
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A (19990)",
+                                   { "title": "A (19990)",
+                                      "year": None,
+                              "series_title": None,
+                                "episode_id": None,
+                             "episode_title": None })
+
+    num_failed += test_one_ParseComplexTitle( "A - 1 - B",
+                                   { "title": "A - 1 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "1",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A - 01 - B",
+                                   { "title": "A - 01 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "01",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A - 001 - B",
+                                   { "title": "A - 001 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "001",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A - 123 - B",
+                                   { "title": "A - 123 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "123",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A - 123a - B",
+                                   { "title": "A - 123a - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "123a",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A - 12.13 - B",
+                                   { "title": "A - 12.13 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "12.13",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Folge 12 - B",
+                                   { "title": "A, Folge 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Folge 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "12, Folge 13 - 14",
+                                   { "title": "12, Folge 13 - 14",
+                                      "year": None,
+                              "series_title": "12",
+                                "episode_id": "Folge 13",
+                             "episode_title": "14" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Doppelfolge 12 - B",
+                                   { "title": "A, Doppelfolge 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Doppelfolge 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Teil 12 - B",
+                                   { "title": "A, Teil 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Teil 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Part 12 - B",
+                                   { "title": "A, Part 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Part 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, part 12 - B",
+                                   { "title": "A, part 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "part 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Buch 12 - B",
+                                   { "title": "A, Buch 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Buch 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Book 12 - B",
+                                   { "title": "A, Book 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Book 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, book 12 - B",
+                                   { "title": "A, book 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "book 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Episode 12 - B",
+                                   { "title": "A, Episode 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Episode 12",
+                             "episode_title": "B" })
+
+    num_failed += test_one_ParseComplexTitle( "A, Film 12 - B",
+                                   { "title": "A, Film 12 - B",
+                                      "year": None,
+                              "series_title": "A",
+                                "episode_id": "Film 12",
+                             "episode_title": "B" })
+
+    return num_failed
+
+
+def test_one_ParseComplexTitle(complex_title, exp_rv):
+    '''
+    Test one invocation of the ParseComplexTitle() function.
+    '''
+
+    act_rv = ParseComplexTitle(complex_title)
+
+    failure_txt = ""
+    if act_rv["title"] != exp_rv["title"]:
+        failure_txt += "\nActual title %s does not match expected title %s"%(repr(act_rv["title"]), repr(exp_rv["title"]))
+    if act_rv["year"] != exp_rv["year"]:
+        failure_txt += "\nActual year %s does not match expected year %s"%(repr(act_rv["year"]), repr(exp_rv["year"]))
+    if act_rv["series_title"] != exp_rv["series_title"]:
+        failure_txt += "\nActual series_title %s does not match expected series_title %s"%(repr(act_rv["series_title"]), repr(exp_rv["series_title"]))
+    if act_rv["episode_id"] != exp_rv["episode_id"]:
+        failure_txt += "\nActual episode_id %s does not match expected episode_id %s"%(repr(act_rv["episode_id"]), repr(exp_rv["episode_id"]))
+    if act_rv["episode_title"] != exp_rv["episode_title"]:
+        failure_txt += "\nActual episode_title %s does not match expected episode_title %s"%(repr(act_rv["episode_title"]), repr(exp_rv["episode_title"]))
+    if failure_txt != "":
+        failure_txt = ("\nTest failure: ParseComplexTitle(%s):"%repr(complex_title)) + failure_txt
+        print failure_txt
+        sys.stdout.flush()
+        return 1
+    else:
+        return 0
+
+
+if __name__ == "__main__":
+    print "Testing module utils ..."
+    num_failed = 0
+    num_failed += test_ParseComplexTitle()
+    if num_failed > 0:
+        print "Error: %d test failures."%(num_failed)
+        rc = 12
+    else:
+        print "Success."
+        rc = 0
+    exit(rc)
+
