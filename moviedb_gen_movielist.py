@@ -1,25 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-#
-# Generates a CSV file containing the list of movie files in the movies database
-# Usage see below in Usage(), or invoke with '-h' or '--help'.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP and Windows 7.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.1.0 2012-06-24
-#     Added Homenet rating columns based on UserMovieOpinion table.
-#     Fixed Excel CSV issue by replacing \r with \n in content of string cells, because \r triggers new row in Excel.
-#   V1.1.1 2012-08-13
-#   V1.3.1 2013-05-19
-#     Renamed output CSV file to AM_MovieList.csv.
-#     Added DAR and ODAR columns to CSV file.
+"""
+Generates a CSV file containing the list of movie files in the movies database
+Usage see below in Usage(), or invoke with '-h' or '--help'.
+
+Supported platforms:
+  Runs on any OS platform that has Python 2.7.
+  Tested on Windows XP and Windows 7.
+
+Prerequisites:
+  1. Python 2.7, available from http://www.python.org
+"""
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller

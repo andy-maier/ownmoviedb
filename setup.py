@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-"""Utilities for movies database"""
+"""
+Utilities for movies database
+"""
 
 #
 # To make this package, run from within this directory (in Windows):
 #   if exist MANIFEST del MANIFEST
 #   python setup.py build sdist -d ../dist
-
 
 
 from distutils.core import setup

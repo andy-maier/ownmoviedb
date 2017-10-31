@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
-'''
+"""
 Module defining package version.
 
 This module is safe for 'import *'; that is, the only global names (that do not start with
@@ -11,8 +11,6 @@ Python versions: 2.6, 2.7
 
 Author:
   Andreas Maier, maiera@de.ibm.com
-'''
-
+"""
 
 __version__ = '1.4.3'               # Version of this package.
-

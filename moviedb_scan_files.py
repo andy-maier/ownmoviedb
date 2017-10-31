@@ -1,29 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-#
-# Updates media information in movie database from movie files.
-# Usage see below in Usage(), or invoke with '-h' or '--help'.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP and Windows 7.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.0.3 2012-06-24
-#     Added support for MediaInfo 0.7.58, by changing --output=xml to --output=XML
-#     Added U+00AA and U+0152 to xmlrep_trans translation list to fix issue with invalid XML produced by MediaInfo.
-#   V1.0.5 2012-08-13
-#     Moved file_sources to movies_config.
-#   V1.2.0 2012-09-02
-#     Renamed package to moviedb and restructured modules.
-#   V1.3.0 2012-12-26
-#     Added support for FolderPath column.
-#   V1.4.0 2013-09-09
-#     Added support for more than one audio stream.
+"""
+Updates media information in movie database from movie files.
+Usage see below in Usage(), or invoke with '-h' or '--help'.
+
+Supported platforms:
+  Runs on any OS platform that has Python 2.7.
+  Tested on Windows XP and Windows 7.
+
+Prerequisites:
+  1. Python 2.7, available from http://www.python.org
+"""
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller

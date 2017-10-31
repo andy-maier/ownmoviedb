@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # coding: utf-8
-"""Configuration parameters"""
+"""
+Configuration parameters
+"""
 
 # OUTPUT_CP  = "cp850"                        # code page used for output messages
 CMDLINE_CP = "cp1252"                       # code page used for parsing command line parameters

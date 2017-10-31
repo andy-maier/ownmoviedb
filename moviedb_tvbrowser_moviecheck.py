@@ -1,23 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-#
-# This script is a device for TV-Browser Recording Control.
-# It checks whether a given movie is present in the movie database and displays the result.
-#
-# Invoke with '-?' or '--help' for help.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.2.2 2012-09-15 AM
-#       Integrated into moviedb project.
+"""
+This script is a device for TV-Browser Recording Control.
+It checks whether a given movie is present in the movie database and displays the result.
 
+Invoke with '-?' or '--help' for help.
+
+Supported platforms:
+  Runs on any OS platform that has Python 2.7.
+  Tested on Windows XP.
+
+Prerequisites:
+  1. Python 2.7, available from http://www.python.org
+"""
 
 import sys, os.path
 import MySQLdb

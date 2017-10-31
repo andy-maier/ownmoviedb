@@ -1,19 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-#
-# Checks the movie database for consistency and displays messages for any inconsistencies detected.
-# Usage see below in Usage(), or invoke with '-h' or '--help'.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP and Windows 7.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.0.1 2012-08-13
+"""
+Checks the movie database for consistency and displays messages for any inconsistencies detected.
+Usage see below in Usage(), or invoke with '-h' or '--help'.
+
+Supported platforms:
+  Runs on any OS platform that has Python 2.7.
+  Tested on Windows XP and Windows 7.
+
+Prerequisites:
+  1. Python 2.7, available from http://www.python.org
+"""
 
 my_version = "1.0.1"
 

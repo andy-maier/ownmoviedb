@@ -1,22 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # coding: utf-8
-#
-# Writes a CSV file listing movies in the movie database that have no descriptive information.
-# Usage see below in Usage(), or invoke with '-h' or '--help'.
-#
-# Supported platforms:
-#   Runs on any OS platform that has Python 2.7.
-#   Tested on Windows XP and Windows 7.
-#
-# Prerequisites:
-#   1. Python 2.7, available from http://www.python.org
-#
-# Change log:
-#   V1.0.1 2012-08-13
-#   V1.4.0 2013-09-12
-#     Added directories to filepath_begin_list.
+"""
+Writes a CSV file listing movies in the movie database that have no descriptive information.
+Usage see below in Usage(), or invoke with '-h' or '--help'.
 
+Supported platforms:
+  Runs on any OS platform that has Python 2.7.
+  Tested on Windows XP and Windows 7.
+
+Prerequisites:
+  1. Python 2.7, available from http://www.python.org
+"""
 
 import re, sys, glob, os, os.path, string, errno, locale, fnmatch, subprocess, xml.etree.ElementTree, datetime
 from operator import itemgetter, attrgetter, methodcaller

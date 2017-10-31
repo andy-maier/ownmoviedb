@@ -6,7 +6,6 @@ Links movie descriptions to media files in the movie database.
 Usage see below in Usage(), or invoke with '-h' or '--help'.
 """
 
-
 import sys
 import os.path
 
