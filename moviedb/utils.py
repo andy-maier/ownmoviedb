@@ -4,9 +4,6 @@
 Utility functions for moviedb project.
 """
 
-__updated__ = "2014-05-06"
-
-
 import re
 import sys
 import subprocess

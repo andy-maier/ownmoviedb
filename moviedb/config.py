@@ -2,9 +2,6 @@
 # coding: utf-8
 """Configuration parameters"""
 
-__updated__ = "2016-10-18"
-
-
 # OUTPUT_CP  = "cp850"                        # code page used for output messages
 CMDLINE_CP = "cp1252"                       # code page used for parsing command line parameters
 FILENAME_CP = "cp1252"                      # code page used for file names in Windows
