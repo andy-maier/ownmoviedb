@@ -210,15 +210,17 @@ def NormalizeString(ustr):
 #------------------------------------------------------------------------------
 def StripSquareBrackets(movie_title):
 
-    if movie_title == None:
-        movie_title_stripped = None
-    else:
-        m = re.match("(.*)(\[.*\])(.*)",movie_title)
-        if m:
-            _tp1, _sb, _tp2 = m.groups()
-            movie_title_stripped = (_tp1 + _tp2).replace(" , ",", ").replace("  "," ").strip(" ")
-        else:
-            movie_title_stripped = movie_title
+    movie_title_stripped = movie_title
+
+    if movie_title_stripped != None:
+        matched = True
+        while matched:
+            m = re.match("(.*)(\[.*\])(.*)",movie_title_stripped)
+            if m != None:
+                _tp1, _sb, _tp2 = m.groups()
+                movie_title_stripped = (_tp1 + _tp2).replace(" , ",", ").replace("  "," ").strip(" ")
+            else:
+                matched = False
 
     return movie_title_stripped
 
@@ -382,7 +384,7 @@ def ParseMovieFilename(filename,tolerate_noext=False):
            uncut            Presence indicates that the movie is not yet cut (i.e. contains advertisements, or
                             extra content at begin or end)
            {ext}            File extension, indicates the container format.
-                            Must be one of: "mp4", "divx.avi", "mpg.avi"
+                            Must be one of: "mp4", "divx.avi", "mpg.avi", "mkv"
                             A missing file extension is tolerated if tolerate_noext is True.
 
     Returns:
@@ -491,6 +493,9 @@ def ParseMovieFilename(filename,tolerate_noext=False):
     elif filename_part2.endswith(".mpg.avi"):
         rv["container"] = "MPG AVI"
         part2_words = part2_words[0:-2]
+    elif filename_part2.endswith(".mkv"):
+        rv["container"] = "MKV"
+        part2_words = part2_words[0:-1]
     else:
         if tolerate_noext:
             rv["container"] = None
@@ -634,7 +639,7 @@ def ParseComplexTitle(complex_title):
 def HasEpisodeDescription(series_title, episode_id):
     '''Determine whether a movie is expected to have a separate movie description for each episode,
     or for the entire series (which in this case is likely a mini-series) or movie that is not an episode.
-    
+
     Parameters:
         series_title        For a movie that is an episode of a series, the series title, as unicode type.
                             Otherwise, None.
@@ -648,7 +653,7 @@ def HasEpisodeDescription(series_title, episode_id):
 
     if episode_id == None or series_title == None:
         has_episode_desc = False
-    else:        
+    else:
         m = re.match(r"^(Teil|[Pp]art) .+$",episode_id)
         if m != None:
             has_episode_desc = False

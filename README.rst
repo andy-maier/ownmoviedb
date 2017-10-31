@@ -18,6 +18,12 @@ This package is a Python source distribution that is designed for installation a
 Change History
 --------------
 
+V1.3.0 2012-12-26
+~~~~~~~~~~~~~~~~~
+
+* Added support for .mkv and .flv
+* Minor improvements in title handling.
+
 V1.2.3a 2012-11-07
 ~~~~~~~~~~~~~~~~~~
 

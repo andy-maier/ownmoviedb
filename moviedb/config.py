@@ -20,6 +20,8 @@ _std_share = "\\\\"+mysql_host+"\\share"    # Standard UNC resource on file serv
 _std_patterns = [                           # Standard file patterns to scan
     "*.mp4",
     "*.avi",
+    "*.mkv",
+    "*.flv",
 ]
 file_sources = [                            # Movie files to scan, as a list of dictionaries
     {
