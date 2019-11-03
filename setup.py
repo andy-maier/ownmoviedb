@@ -64,6 +64,7 @@ def read_file(file):
         content = fp.read()
     return content
 
+
 pypi_package_name = 'ownmoviedb'
 python_package_name = 'ownmoviedb'
 
@@ -73,6 +74,7 @@ install_requires = [req for req in requirements
 dependency_links = [req for req in requirements
                     if req and re.match(r'[^:]+://', req)]
 package_version = get_version(os.path.join(python_package_name, 'version.py'))
+
 
 # Docs on setup():
 # * https://docs.python.org/2.7/distutils/apiref.html?

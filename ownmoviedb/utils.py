@@ -538,9 +538,9 @@ def ParseMovieFilename(filename, tolerate_noext=False):
         rv["dar_h"] = m.group(2)
         qblock_words = qblock_words[1:]
     else:
-        raise ParseError(u"Invalid display aspect ratio \"" +
-                         qblock_words[0] + u"\" in movie file name: \"" +
-                         filename + u"\"")
+        raise ParseError(
+            u'Invalid display aspect ratio "{}" in movie file name: "{}"'.
+            format(qblock_words[0], filename))
 
     # Determine technical comments
     if len(qblock_words) > 0:
