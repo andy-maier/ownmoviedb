@@ -78,6 +78,8 @@ V1.5.0 not yet released
 * Added support for Travis CI.
 * Switched from using MySQL-python to using mysqlclient package, which is a
   fork with Python 3 support and many fixes.
+* Removed the use of pbr. The package version is now defined in
+  ownmoviedb/version.py.
 
 V1.4.3 2016-11-13
 ~~~~~~~~~~~~~~~~~
