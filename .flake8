@@ -1,0 +1,20 @@
+[flake8]
+max_line_length = 80
+
+exclude =
+    .git,
+    .tox,
+    __pycache__,
+    *.pyc,
+    build_doc,
+    docs,
+    dist,
+    *.egg-info,
+
+# Uncommenting the following setting will cause all noqa statements to be
+# ignored, so it may be useful to find hidden issues.
+#disable_noqa
+
+# Globally disabled flake8 issues:
+ignore =
+    F403, # unable to detect undefined names (when using wildcard import)
