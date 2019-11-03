@@ -61,38 +61,38 @@ matrix:
 #      python: "3.6"
 #      env:
 #        - PACKAGE_LEVEL=latest
-#    - os: linux
-#      language: python
-#      python: "pypy"   # Python 2.7.13 (as of 11/2019)
-#      env:
-#        - PACKAGE_LEVEL=minimum
-#    - os: linux
-#      language: python
-#      python: "pypy"   # Python 2.7.13 (as of 11/2019)
-#      env:
-#        - PACKAGE_LEVEL=latest
-#    - os: linux
-#      language: python
-#      python: "pypy3"   # Python 3.6.1 (as of 11/2019)
-#      env:
-#        - PACKAGE_LEVEL=minimum
+    - os: linux
+      language: python
+      python: "pypy"   # Python 2.7.13 (as of 11/2019)
+      env:
+        - PACKAGE_LEVEL=minimum
+    - os: linux
+      language: python
+      python: "pypy"   # Python 2.7.13 (as of 11/2019)
+      env:
+        - PACKAGE_LEVEL=latest
 #    - os: linux
 #      language: python
 #      python: "pypy3"   # Python 3.6.1 (as of 11/2019)
 #      env:
-#        - PACKAGE_LEVEL=latest
-#    - os: osx
-#      language: generic
-#      python:
-#      env:
 #        - PACKAGE_LEVEL=minimum
-#        - PYTHON=2
-#    - os: osx
-#      language: generic
-#      python:
+#    - os: linux
+#      language: python
+#      python: "pypy3"   # Python 3.6.1 (as of 11/2019)
 #      env:
 #        - PACKAGE_LEVEL=latest
-#        - PYTHON=2
+    - os: osx
+      language: generic
+      python:
+      env:
+        - PACKAGE_LEVEL=minimum
+        - PYTHON=2
+    - os: osx
+      language: generic
+      python:
+      env:
+        - PACKAGE_LEVEL=latest
+        - PYTHON=2
 #    - os: osx
 #      language: generic
 #      python:
